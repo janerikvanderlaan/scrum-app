@@ -51,7 +51,7 @@ Where Playwright can't download browsers, point it at an installed Chromium with
 - **GitHub Codespaces:** on the repository page choose Code → Codespaces → Create codespace. Nothing to install.
 - **VS Code on your own machine:** install Docker Desktop and the Dev Containers extension, open the folder and choose "Reopen in Container".
 
-Then run `npm run dev` and open the forwarded port 3000. All the test commands above work as they are.
+Then run `npm run dev` and choose "Open in Browser" when VS Code offers it (or the globe icon on port 3000 in the Ports tab). All the test commands above work as they are.
 
 ## Licence of the Guide text
 
