@@ -1,12 +1,10 @@
-import { execFileSync } from 'node:child_process';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, describe, expect, it } from 'vitest';
 import { closePool, pool } from './client';
 import {
   addDodItem, addMember, createTeam, getTeam, listExceptions, logException, removeMember, setMemberRole, setProductGoal, setStage,
 } from './teams';
 
 // Runs against a real PostgreSQL database: DATABASE_URL=... npm run test:db
-beforeAll(() => { execFileSync('node', ['scripts/migrate.mjs'], { stdio: 'inherit' }); });
 afterAll(async () => {
   await pool().query("delete from teams where name like 'DB test%'");
   await closePool();

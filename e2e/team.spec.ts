@@ -59,7 +59,7 @@ test('overrides need a reason, are logged once and survive going back', async ({
   await expect(page.locator('.log')).toContainText(tally);
   await expect(page.locator('header .tag')).toHaveText('Not following the Scrum Guide');
 
-  await page.click('text=Back to Team and goals');
+  await page.click('#back');
   await expect(page.locator('section[data-exception="Exception: SG-095, SG-063, SG-068"]')).toBeVisible();
   await page.click('#next');
   await expect(page.locator('h1')).toHaveText('Sprint 1 Planning');

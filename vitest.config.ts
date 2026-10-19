@@ -6,5 +6,7 @@ const db = process.env.VITEST_DB === '1';
 
 export default defineConfig({
   resolve: { alias: { '@': fileURLToPath(new URL('.', import.meta.url)) } },
-  test: { include: [db ? 'src/**/*.db.test.ts' : 'src/**/*.test.ts'], exclude: db ? [] : ['src/**/*.db.test.ts', 'node_modules/**'] },
+  test: db
+    ? { include: ['src/**/*.db.test.ts'], globalSetup: ['src/db/global-setup.ts'], fileParallelism: false }
+    : { include: ['src/**/*.test.ts'], exclude: ['src/**/*.db.test.ts', 'node_modules/**'] },
 });

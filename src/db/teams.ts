@@ -8,6 +8,7 @@ export interface TeamSummary {
 
 export interface Team extends TeamSummary {
   productGoal: string;
+  sprintGoal: string;
   sprintNumber: number;
   stage: number;
   members: (Member & { id: number })[];
@@ -23,14 +24,14 @@ export async function listTeams(): Promise<TeamSummary[]> {
 
 export async function getTeam(id: string): Promise<Team | null> {
   const db = pool();
-  const { rows } = await db.query('select id, name, product_goal, sprint_number, stage from teams where id = $1', [id]);
+  const { rows } = await db.query('select id, name, product_goal, sprint_goal, sprint_number, stage from teams where id = $1', [id]);
   if (!rows[0]) return null;
   const [members, dod] = await Promise.all([
     db.query('select id, name, role from members where team_id = $1 order by position, id', [id]),
     db.query('select id, text from dod_items where team_id = $1 order by position, id', [id]),
   ]);
   const t = rows[0];
-  return { id: t.id, name: t.name, productGoal: t.product_goal, sprintNumber: t.sprint_number, stage: t.stage, members: members.rows, dod: dod.rows };
+  return { id: t.id, name: t.name, productGoal: t.product_goal, sprintGoal: t.sprint_goal, sprintNumber: t.sprint_number, stage: t.stage, members: members.rows, dod: dod.rows };
 }
 
 /** Creates a team with a URL-friendly id derived from its name, and returns the id. */
