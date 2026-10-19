@@ -17,7 +17,7 @@ test.afterEach(() => expect(errors).toEqual([]));
 
 test('home page links to the prototype', async ({ page }) => {
   await page.goto('/');
-  await expect(page.getByRole('link', { name: 'Open the prototype' })).toHaveAttribute('href', '/prototype/index.html');
+  await expect(page.getByRole('link', { name: 'clickable prototype' })).toHaveAttribute('href', '/prototype/index.html');
 });
 
 test('an accepted warning or logged override is asked only once', async ({ page }) => {

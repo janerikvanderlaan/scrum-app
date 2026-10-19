@@ -12,9 +12,11 @@ with `NEXT_PUBLIC_PRODUCT_NAME`. Code, packages and cloud resources use the neut
 | Path | What it is |
 |---|---|
 | `src/rules/` | The rules engine: Guide rules, guidance and team agreements as pure TypeScript functions, with unit tests. No UI or storage, so the app and future integrations (Jira, Azure DevOps) share it. |
-| `app/` | The Next.js app. For now a start page; the workflow screens move here from the prototype step by step. |
+| `app/` | The Next.js app: the team list and the Team and goals stage. The other stages move here from the prototype step by step. |
+| `src/db/`, `db/migrations/` | Storage in PostgreSQL: teams, members, Definition of Done and the exception log. |
+| `scripts/` | `migrate.mjs` applies the SQL migrations; `seed.mjs` adds the example teams Atlas and Borealis. |
 | `public/prototype/` | The clickable prototype ("Sprint Gate"), kept as the reference for the workflow. |
-| `e2e/` | Playwright browser tests. |
+| `e2e/` | Playwright browser tests. They reset the example teams before each run. |
 | `.github/workflows/ci.yml` | CI: type check, unit tests, build, browser tests and the container image. |
 | `Dockerfile` | One container image that runs on any cloud (Azure Container Apps first). |
 
@@ -26,12 +28,19 @@ with `NEXT_PUBLIC_PRODUCT_NAME`. Code, packages and cloud resources use the neut
 
 ## Run it
 
+The app needs PostgreSQL 16 or later. Point `DATABASE_URL` at an empty database, for example
+`postgres://postgres:postgres@localhost:5432/scrum_app`.
+
 ```sh
 npm ci
+npm run db:migrate && npm run db:seed
 npm run dev          # http://localhost:3000
 npm test             # rules engine unit tests
+npm run test:db      # database tests
 npm run build && npm run test:e2e   # browser tests
 ```
+
+There is no sign-in yet: everyone who can open the app sees every team, and exceptions are logged as "Team member".
 
 Where Playwright can't download browsers, point it at an installed Chromium with `PW_CHROMIUM_PATH`.
 

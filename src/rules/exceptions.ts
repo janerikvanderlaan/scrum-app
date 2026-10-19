@@ -37,3 +37,12 @@ export const countKinds = (log: readonly Pick<ExceptionRecord, 'rule' | 'kind'>[
 
 /** A Sprint follows the Scrum Guide as long as no Guide rule was overridden. */
 export const followsScrum = (log: readonly Pick<ExceptionRecord, 'rule' | 'kind'>[]): boolean => countKinds(log).guide === 0;
+
+/** The findings the team still has to decide on, in the order they are asked. */
+export const pendingFindings = (findings: readonly Finding[], log: readonly ExceptionRecord[], sprint: number): Finding[] =>
+  findings.filter(f => needsDecision(f, log, sprint));
+
+/** Overriding a block takes a deliberate reason; accepting a warning doesn't. */
+export const MIN_REASON_LENGTH = 10;
+export const reasonIsValid = (kind: ExceptionRecord['kind'], reason: string): boolean =>
+  kind === 'warning' || reason.trim().length >= MIN_REASON_LENGTH;

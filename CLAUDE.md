@@ -5,4 +5,5 @@
 - Rule IDs (SG-xxx) come from the research project's traceability sheet; quote Guide text exactly and keep the CC BY-SA attribution.
 - Keep the product name only in `src/config/product.ts`; use `scrum-app` everywhere else.
 - Stay cloud-portable: containers and standard services only (PostgreSQL, OpenID Connect), no cloud-only features in the core.
-- Before pushing: `npm run typecheck && npm test && npm run build && npm run test:e2e`.
+- Schema changes go in a new numbered file in `db/migrations/`; never edit an applied migration.
+- Before pushing (with `DATABASE_URL` set): `npm run typecheck && npm test && npm run test:db && npm run build && npm run test:e2e`.
