@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  RULES, averageVelocity, countKinds, followsScrum, isStory, kindFor, kindLabel, needsDecision,
+  RULES, averageVelocity, countKinds, followsScrum, isStory, kindFor, kindLabel, needsDecision, pendingFindings, reasonIsValid,
   planningChecks, selectionChecks, teamChecks, tooBigReason,
   type BacklogItem, type ExceptionRecord, type Member,
 } from '.';
@@ -97,5 +97,14 @@ describe('exception log', () => {
   it('only Guide rule overrides stop a Sprint following Scrum', () => {
     expect(followsScrum([record({}), record({ rule: 'TEAM-01', kind: 'override' })])).toBe(true);
     expect(followsScrum([record({ rule: 'SG-164', kind: 'override' })])).toBe(false);
+  });
+  it('keeps only the findings still to decide, in order', () => {
+    const other = { rule: 'SG-194' as const, detail: 'There is no Product Goal yet', target: 'pgoal' };
+    expect(pendingFindings([finding, other], [record({})], 1)).toEqual([other]);
+  });
+  it('needs a reason of at least 10 characters to override, none to accept a warning', () => {
+    expect(reasonIsValid('override', 'too short')).toBe(false);
+    expect(reasonIsValid('override', 'Coach starts next month')).toBe(true);
+    expect(reasonIsValid('warning', '')).toBe(true);
   });
 });

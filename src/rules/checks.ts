@@ -42,7 +42,7 @@ export function tooBigReason(item: BacklogItem, velocities: readonly number[]): 
 }
 
 /** Team and goals stage, in the order the app asks them. */
-export function teamChecks(team: { name: string; members: readonly Member[]; productGoal: string; dod: readonly string[] }): Finding[] {
+export function teamChecks(team: { name: string; members: readonly Member[]; productGoal: string; dod: readonly unknown[] }): Finding[] {
   const count = (role: Role) => team.members.filter(m => m.role === role).length;
   const po = count('Product Owner'), sm = count('Scrum Master'), dev = count('Developer');
   const findings: Finding[] = [];
