@@ -44,6 +44,15 @@ There is no sign-in yet: everyone who can open the app sees every team, and exce
 
 Where Playwright can't download browsers, point it at an installed Chromium with `PW_CHROMIUM_PATH`.
 
+### In a Dev Container or Codespace
+
+`.devcontainer/` sets up Node, PostgreSQL 16 and Chromium for you, then migrates and seeds the database.
+
+- **GitHub Codespaces:** on the repository page choose Code → Codespaces → Create codespace. Nothing to install.
+- **VS Code on your own machine:** install Docker Desktop and the Dev Containers extension, open the folder and choose "Reopen in Container".
+
+Then run `npm run dev` and open the forwarded port 3000. All the test commands above work as they are.
+
 ## Licence of the Guide text
 
 Rule texts are quoted from the 2020 Scrum Guide by Ken Schwaber and Jeff Sutherland, licensed
