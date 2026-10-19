@@ -1,6 +1,6 @@
 import { afterAll, describe, expect, it } from 'vitest';
 import { closePool, pool } from './client';
-import { addBacklogItem, deselectItem, getPlanning, selectItem, setMarkedBig, setSprintGoal } from './planning';
+import { addBacklogItem, deselectItem, getPlanning, selectItem, setMarkedBig, setPoints, setSprintGoal } from './planning';
 import { createTeam, getTeam } from './teams';
 
 afterAll(async () => {
@@ -25,6 +25,18 @@ describe('planning', () => {
     expect(p.backlog[1].markedBig).toBe(true);
     await deselectItem(id, 1, a);
     expect((await getPlanning(id, 1)).selected).toEqual([]);
+  });
+
+  it('sizes and resizes an item, only within its own team', async () => {
+    const mine = await createTeam('DB test size'), other = await createTeam('DB test size other');
+    await addBacklogItem(mine, 'Unsized item', null);
+    const item = Number((await getPlanning(mine, 1)).backlog[0].id);
+    await setPoints(mine, item, 5);
+    expect((await getPlanning(mine, 1)).backlog[0].points).toBe(5);
+    await setPoints(other, item, 8);
+    expect((await getPlanning(mine, 1)).backlog[0].points).toBe(5);
+    await setPoints(mine, item, null);
+    expect((await getPlanning(mine, 1)).backlog[0].points).toBeNull();
   });
 
   it('cannot select another team’s item', async () => {

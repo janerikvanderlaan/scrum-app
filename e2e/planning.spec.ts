@@ -70,3 +70,18 @@ test('closing Sprint Planning needs a Sprint Goal, sized stories and a forecast 
   await expect(page.locator('.log')).toContainText('0 Guide rule overrides · 1 team agreement override · 0 accepted warnings');
   await expect(page.locator('header .tag')).toHaveText('Following the Scrum Guide');
 });
+
+// Test round 1, issue 2: there was no way to size or resize an item already on the Product Backlog.
+test('items on the Product Backlog can be sized and resized', async ({ page }) => {
+  const size = page.locator('[aria-label="Size of item 6"]');
+  await expect(size).toHaveValue('');
+  await size.selectOption('5');
+  await page.waitForLoadState('networkidle');
+  await expect(size).toHaveValue('5');
+  await page.reload();
+  await expect(size).toHaveValue('5');
+  await size.selectOption('');
+  await page.waitForLoadState('networkidle');
+  await page.reload();
+  await expect(size).toHaveValue('');
+});

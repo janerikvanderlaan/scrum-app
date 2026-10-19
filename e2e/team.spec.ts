@@ -65,3 +65,34 @@ test('overrides need a reason, are logged once and survive going back', async ({
   await expect(page.locator('h1')).toHaveText('Sprint 1 Planning');
   await expect(page.locator('.log')).toContainText(tally);
 });
+
+// Test round 1, issue 1: the new accountability was saved but the dropdown jumped back to the old one.
+test('a changed accountability stays on screen and is what the rules check', async ({ page }) => {
+  await page.goto('/');
+  const name = `Team ${Date.now()}`;
+  await page.fill('[aria-label="Team name"]', name);
+  await page.click('text=Create team');
+  for (const [who, r] of [['Mara', 'Product Owner'], ['Joost', 'Developer'], ['Lena', 'Scrum Master']]) {
+    await page.fill('[aria-label="New member name"]', who);
+    await page.selectOption('[aria-label="New member accountability"]', r);
+    await page.click('text=Add member');
+    await expect(page.locator('tbody')).toContainText(who);
+  }
+  const role = page.locator('[aria-label="Accountability of Joost"]');
+  const change = async (to: string) => {
+    await role.selectOption(to);
+    await page.waitForLoadState('networkidle');
+    await expect(role).toHaveValue(to);
+    await page.reload();
+    await expect(role).toHaveValue(to);
+  };
+
+  await change('Product Owner');
+  await page.click('#next');
+  await expect(title(page)).toHaveText(`${name} has 2 Product Owners`);
+  await page.click('#ov-cancel');
+
+  await change('Developer');
+  await page.click('#next');
+  await expect(title(page)).toHaveText('There is no Product Goal yet');
+});
