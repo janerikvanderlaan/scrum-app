@@ -1,0 +1,16 @@
+// A ready-made development and test environment for VS Code (Dev Containers) and GitHub Codespaces:
+// Node 22, PostgreSQL 16 with the example teams, and Chromium for the browser tests.
+{
+  "name": "scrum-app",
+  "dockerComposeFile": "docker-compose.yml",
+  "service": "app",
+  "workspaceFolder": "/workspaces/scrum-app",
+  "forwardPorts": [3000],
+  "portsAttributes": { "3000": { "label": "App", "onAutoForward": "openBrowser" } },
+  "postCreateCommand": "npm ci && npx playwright install --with-deps chromium && npm run db:migrate && npm run db:seed",
+  "customizations": {
+    "vscode": {
+      "extensions": ["ms-playwright.playwright", "vitest.explorer"]
+    }
+  }
+}
