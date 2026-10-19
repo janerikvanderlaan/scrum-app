@@ -12,8 +12,8 @@ with `NEXT_PUBLIC_PRODUCT_NAME`. Code, packages and cloud resources use the neut
 | Path | What it is |
 |---|---|
 | `src/rules/` | The rules engine: Guide rules, guidance and team agreements as pure TypeScript functions, with unit tests. No UI or storage, so the app and future integrations (Jira, Azure DevOps) share it. |
-| `app/` | The Next.js app: the team list and the Team and goals stage. The other stages move here from the prototype step by step. |
-| `src/db/`, `db/migrations/` | Storage in PostgreSQL: teams, members, Definition of Done and the exception log. |
+| `app/` | The Next.js app: the team list, Team and goals, and Sprint Planning. The other stages move here from the prototype step by step. |
+| `src/db/`, `db/migrations/` | Storage in PostgreSQL: teams, members, Definition of Done, Product Backlog, Sprint selection, velocities and the exception log. |
 | `scripts/` | `migrate.mjs` applies the SQL migrations; `seed.mjs` adds the example teams Atlas and Borealis. |
 | `public/prototype/` | The clickable prototype ("Sprint Gate"), kept as the reference for the workflow. |
 | `e2e/` | Playwright browser tests. They reset the example teams before each run. |
