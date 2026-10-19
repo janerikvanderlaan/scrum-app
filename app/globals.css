@@ -1,0 +1,6 @@
+:root { --bg: #f5f6f8; --ink: #18202c; --muted: #5b6575; --accent: #2b45c9; color-scheme: light dark; }
+@media (prefers-color-scheme: dark) { :root { --bg: #11151c; --ink: #e6e9ef; --muted: #9aa3b2; --accent: #8fa2ff; } }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.5 system-ui, sans-serif; }
+main { max-width: 640px; margin: 64px auto; padding: 0 16px; }
+p { color: var(--muted); }
+a { color: var(--accent); font-weight: 600; }

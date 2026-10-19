@@ -1,0 +1,39 @@
+import { RULES, isGuideRule, type RuleId } from './catalog';
+import type { Finding } from './checks';
+
+/** One logged exception: an accepted warning or a deliberate override with its reason. */
+export interface ExceptionRecord {
+  rule: RuleId;
+  kind: 'warning' | 'override';
+  reason: string;
+  who: string;
+  target: string;
+  detail: string;
+  sprint: number;
+  stage: string;
+  day: number | null;
+  time: string;
+}
+
+/**
+ * Whether a finding still needs a decision from the team. An exception already logged this Sprint
+ * for the same rule, place and situation is not asked or logged again.
+ */
+export const needsDecision = (finding: Finding, log: readonly ExceptionRecord[], sprint: number): boolean =>
+  !log.some(o => o.sprint === sprint && o.rule === finding.rule && o.target === finding.target && o.detail === finding.detail);
+
+/** Guidance and confirmations are accepted; Guide rules and team agreements are overridden. */
+export const kindFor = (rule: RuleId): ExceptionRecord['kind'] =>
+  RULES[rule].tier === 'guidance' || RULES[rule].tier === 'confirm' ? 'warning' : 'override';
+
+export const kindLabel = (o: Pick<ExceptionRecord, 'rule' | 'kind'>): string =>
+  o.kind === 'warning' ? 'Warning accepted' : isGuideRule(o.rule) ? 'Guide rule overridden' : 'Team agreement overridden';
+
+export const countKinds = (log: readonly Pick<ExceptionRecord, 'rule' | 'kind'>[]) => ({
+  guide: log.filter(o => o.kind === 'override' && isGuideRule(o.rule)).length,
+  team: log.filter(o => o.kind === 'override' && !isGuideRule(o.rule)).length,
+  warn: log.filter(o => o.kind === 'warning').length,
+});
+
+/** A Sprint follows the Scrum Guide as long as no Guide rule was overridden. */
+export const followsScrum = (log: readonly Pick<ExceptionRecord, 'rule' | 'kind'>[]): boolean => countKinds(log).guide === 0;

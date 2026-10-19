@@ -1,0 +1,550 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sprint Gate</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: sticky top bar (team instance + Scrum status), then a three-part workspace: Sprint stages rail, stage panel, rule log rail. Stacks to one column on phones. */
+:root {
+  --bg: #f5f6f8; --surface: #ffffff; --ink: #18202c; --muted: #5b6575; --line: #dde1e8;
+  --accent: #2443b8; --accent-soft: #e6ebfb;
+  --block: #b42318; --block-soft: #fdecea; --warn: #9a5b00; --warn-soft: #fdf3e1; --ok: #1f7a4d; --ok-soft: #e5f4ec;
+  --font-ui: "Instrument Sans", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #11151c; --surface: #1a2029; --ink: #e8ecf2; --muted: #9aa4b4; --line: #2c3442;
+  --accent: #8ea6ff; --accent-soft: #232d4d;
+  --block: #ff8a80; --block-soft: #3a1f1e; --warn: #f2b45c; --warn-soft: #3a2c16; --ok: #6fd3a0; --ok-soft: #173326; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #11151c; --surface: #1a2029; --ink: #e8ecf2; --muted: #9aa4b4; --line: #2c3442;
+  --accent: #8ea6ff; --accent-soft: #232d4d;
+  --block: #ff8a80; --block-soft: #3a1f1e; --warn: #f2b45c; --warn-soft: #3a2c16; --ok: #6fd3a0; --ok-soft: #173326; color-scheme: dark }
+* { box-sizing: border-box }
+body { background: var(--bg); color: var(--ink); font-family: var(--font-ui); font-size: 15px; line-height: 1.5; }
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--surface); }
+.wrap { padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); max-width: 1280px; margin: 0 auto; }
+header.top { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: var(--surface); border-bottom: 1px solid var(--line); }
+header.top .wrap { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px; padding-block: 12px; }
+.brand { font-weight: 700; font-size: 18px; letter-spacing: -0.01em; }
+.brand small { display: block; font-weight: 500; font-size: 12px; color: var(--muted); letter-spacing: 0; }
+.teams { display: flex; gap: 6px; flex-wrap: wrap; }
+.teams button { font: inherit; font-size: 14px; border: 1px solid var(--line); background: transparent; color: var(--ink); padding: 6px 12px; border-radius: 999px; cursor: pointer; }
+.teams button[aria-pressed="true"] { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); font-weight: 600; }
+.status { margin-left: auto; display: flex; align-items: center; gap: 8px; font-size: 13px; }
+.pill { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; font-weight: 600; font-size: 13px; }
+.pill.ok { background: var(--ok-soft); color: var(--ok); } .pill.block { background: var(--block-soft); color: var(--block); } .pill.warn { background: var(--warn-soft); color: var(--warn); }
+.pill::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+main.wrap { display: grid; grid-template-columns: 220px minmax(0, 1fr) 300px; gap: 24px; padding-block: 24px 48px; align-items: start; }
+@media (max-width: 1000px) { main.wrap { grid-template-columns: minmax(0, 1fr); } }
+.note { font-size: 13px; color: var(--muted); }
+ol.stages { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+ol.stages li { display: grid; grid-template-columns: 28px 1fr; gap: 8px; align-items: center; padding: 8px 10px; border-radius: 8px; color: var(--muted); font-size: 14px; }
+ol.stages li .n { font-family: var(--font-mono); font-size: 12px; width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; border: 1px solid var(--line); }
+.stage-link { all: unset; display: contents; cursor: pointer; }
+ol.stages li:has(.stage-link) { cursor: pointer; } ol.stages li:has(.stage-link):hover { background: var(--accent-soft); }
+ol.stages li:has(.stage-link:focus-visible) { outline: 2px solid var(--accent); }
+ol.stages li.done { color: var(--ink); } ol.stages li.done .n { background: var(--ok-soft); color: var(--ok); border-color: transparent; }
+ol.stages li.current { background: var(--accent-soft); color: var(--accent); font-weight: 600; } ol.stages li.current .n { border-color: var(--accent); }
+@media (max-width: 1000px) { ol.stages { grid-auto-flow: column; overflow-x: auto; } ol.stages li { grid-template-columns: 24px auto; white-space: nowrap; } }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 24px; display: grid; gap: 20px; min-width: 0; }
+.panel h1 { margin: 0; font-size: 24px; letter-spacing: -0.015em; text-wrap: balance; }
+.panel h2 { margin: 0 0 8px; font-size: 13px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); font-weight: 600; }
+.eyebrow { font-family: var(--font-mono); font-size: 12px; color: var(--muted); }
+section.block { display: grid; gap: 10px; min-width: 0; }
+label { font-weight: 600; font-size: 14px; }
+input[type="text"], textarea, select { font: inherit; color: var(--ink); background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; width: 100%; }
+textarea { min-height: 64px; resize: vertical; }
+input:focus-visible, textarea:focus-visible, select:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.btn { font: inherit; font-weight: 600; font-size: 14px; border-radius: 8px; padding: 9px 16px; border: 1px solid var(--accent); background: var(--accent); color: var(--surface); cursor: pointer; }
+.btn.ghost { background: transparent; color: var(--accent); }
+.btn.quiet { background: transparent; color: var(--muted); border-color: var(--line); }
+.btn.danger { background: var(--block); border-color: var(--block); color: var(--surface); }
+.btn:disabled { opacity: 0.45; cursor: not-allowed; }
+table { width: 100%; border-collapse: collapse; font-size: 14px; }
+th, td { text-align: left; padding: 8px 6px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+th { font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); font-weight: 600; }
+.tbl { overflow-x: auto; }
+.mono { font-family: var(--font-mono); font-size: 12px; }
+.num { font-variant-numeric: tabular-nums; }
+.tag { font-size: 12px; font-weight: 600; padding: 2px 8px; border-radius: 6px; white-space: nowrap; }
+.tag.warn { background: var(--warn-soft); color: var(--warn); } .tag.ok { background: var(--ok-soft); color: var(--ok); } .tag.block { background: var(--block-soft); color: var(--block); }
+.callout { border-radius: 8px; padding: 10px 12px; font-size: 14px; }
+.callout.warn { background: var(--warn-soft); color: var(--warn); } .callout.ok { background: var(--ok-soft); color: var(--ok); } .callout.info { background: var(--accent-soft); color: var(--accent); }
+.board { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+@media (max-width: 640px) { .board { grid-template-columns: minmax(0, 1fr); } }
+.col { background: var(--bg); border-radius: 10px; padding: 10px; display: grid; gap: 8px; align-content: start; min-height: 120px; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 10px; display: grid; gap: 6px; font-size: 14px; }
+.card .row { justify-content: space-between; }
+.days { display: flex; gap: 6px; flex-wrap: wrap; }
+.day { font-family: var(--font-mono); font-size: 12px; width: 34px; height: 34px; border-radius: 8px; display: grid; place-items: center; border: 1px solid var(--line); color: var(--muted); }
+.day.held { background: var(--ok-soft); color: var(--ok); border-color: transparent; }
+.day.skipped { background: var(--block-soft); color: var(--block); border-color: transparent; }
+.day.today { border-color: var(--accent); color: var(--accent); font-weight: 600; }
+aside.log { display: grid; gap: 12px; }
+.logbox { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 16px; display: grid; gap: 10px; }
+.logbox h3 { margin: 0; font-size: 15px; }
+.entry { border-left: 3px solid var(--warn); padding: 4px 0 4px 10px; display: grid; gap: 2px; font-size: 13px; }
+.entry q { color: var(--ink); quotes: "\201C" "\201D"; }
+.metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+.metric { background: var(--bg); border-radius: 10px; padding: 12px; display: grid; gap: 2px; }
+.metric b { font-size: 22px; font-variant-numeric: tabular-nums; }
+.metric span { font-size: 13px; color: var(--muted); }
+.faces { display: flex; gap: 6px; flex-wrap: wrap; }
+.faces button { font: inherit; width: 44px; height: 40px; border-radius: 8px; border: 1px solid var(--line); background: transparent; color: var(--ink); cursor: pointer; font-weight: 600; }
+.faces button[aria-pressed="true"] { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+/* Override dialog */
+.scrim { position: fixed; inset: 0; background: rgba(10, 14, 20, 0.55); display: grid; place-items: center; z-index: 20; padding: max(16px, env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-right, 0px)) max(16px, env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px)); }
+.dialog { background: var(--surface); color: var(--ink); border-radius: 14px; max-width: 520px; width: 100%; padding: 22px; display: grid; gap: 14px; border-top: 5px solid var(--block); max-height: 90vh; overflow: auto; }
+.dialog.warning { border-top-color: var(--warn); }
+.dialog h3 { margin: 0; font-size: 19px; }
+.dialog blockquote { margin: 0; padding: 10px 12px; background: var(--bg); border-radius: 8px; font-size: 14px; }
+.dialog blockquote cite { display: block; font-style: normal; font-family: var(--font-mono); font-size: 12px; color: var(--muted); margin-top: 4px; }
+/* Highlights: red while a dialog asks about a field, amber once overridden, accent once a warning was acknowledged */
+[data-flag] { position: relative; border-radius: 8px; transition: box-shadow 120ms; }
+.flag-pending { box-shadow: 0 0 0 3px var(--block); background: var(--block-soft); }
+.flag-override { box-shadow: 0 0 0 2px var(--warn); background: var(--warn-soft); }
+.flag-warning { box-shadow: 0 0 0 2px var(--accent); }
+tr.flag-pending, tr.flag-override, tr.flag-warning { outline: 2px solid var(--warn); outline-offset: -2px; box-shadow: none; }
+tr.flag-pending { outline-color: var(--block); }
+.flag-override[data-flag-rules]::after, .flag-warning[data-flag-rules]::after { content: "Exception: " attr(data-flag-rules); position: absolute; top: -10px; right: 8px; font: 600 11px var(--font-mono); background: var(--warn); color: var(--surface); padding: 1px 6px; border-radius: 4px; white-space: nowrap; z-index: 1; }
+.flag-warning[data-flag-rules]::after { content: "Warning: " attr(data-flag-rules); background: var(--accent); }
+tr[data-flag-rules]::after, .day[data-flag-rules]::after { content: none !important; }
+.day.flag-override { box-shadow: 0 0 0 2px var(--warn); }
+footer.wrap { padding-block: 0 32px; font-size: 12px; color: var(--muted); }
+@media (prefers-reduced-motion: no-preference) { .dialog { animation: rise 160ms ease-out; } @keyframes rise { from { transform: translateY(8px); opacity: 0.6; } } }
+</style>
+</head>
+<body>
+
+<header class="top"><div class="wrap">
+  <div class="brand">Sprint Gate<small>Prototype · 2020 Scrum Guide rules</small></div>
+  <div class="teams" id="teams" role="group" aria-label="Team instance"></div>
+  <div class="status" id="status"></div>
+</div></header>
+
+<main class="wrap">
+  <nav aria-label="Sprint stages"><ol class="stages" id="stages"></ol>
+    <p class="note" style="margin-top:12px">Each team is its own instance with its own backlog, Definition of Done and override log.</p></nav>
+  <div class="panel" id="panel"></div>
+  <aside class="log" id="log"></aside>
+</main>
+
+<footer class="wrap">Rule texts are quoted from <a href="https://scrumguides.org/scrum-guide.html" style="color:inherit">The 2020 Scrum Guide</a> by Ken Schwaber and Jeff Sutherland, licensed CC BY-SA 4.0. Rule IDs refer to the project's phase 1 traceability sheet. Example teams and data are made up for this prototype.</footer>
+
+<div id="modal"></div>
+
+<script>
+const RULES = {
+  'SG-063': { text: 'The Scrum Team consists of one Scrum Master, one Product Owner, and Developers.', tier: 'rule' },
+  'SG-095': { text: 'The Product Owner is one person, not a committee.', tier: 'rule' },
+  'SG-068': { text: 'The Scrum Team is small enough to remain nimble and large enough to complete significant work within a Sprint, typically 10 or fewer people.', tier: 'guidance' },
+  'SG-194': { text: 'For the Product Backlog it is the Product Goal.', tier: 'rule' },
+  'SG-240': { text: 'If it is not an organizational standard, the Scrum Team must create a Definition of Done appropriate for the product.', tier: 'rule' },
+  'SG-200': { text: 'Product Backlog items that can be Done by the Scrum Team within one Sprint are deemed ready for selection in a Sprint Planning event.', tier: 'rule' },
+  'SG-150': { text: 'The Sprint Goal must be finalized prior to the end of Sprint Planning.', tier: 'rule' },
+  'SG-164': { text: 'To reduce complexity, it is held at the same time and place every working day of the Sprint.', tier: 'rule' },
+  'SG-233': { text: 'Work cannot be considered part of an Increment unless it meets the Definition of Done.', tier: 'rule' },
+  'SG-125': { text: 'They are fixed length events of one month or less to create consistency.', tier: 'rule' },
+  'SG-121': { text: 'Failure to operate any events as prescribed results in lost opportunities to inspect and adapt.', tier: 'rule' },
+  'SG-187': { text: 'The Sprint Retrospective concludes the Sprint.', tier: 'rule' },
+  'SG-185': { text: 'The most impactful improvements are addressed as soon as possible.', tier: 'rule' },
+  'SG-238': { text: 'Instead, it returns to the Product Backlog for future consideration.', tier: 'confirm' },
+  'SG-216': { text: 'The Sprint Backlog is a plan by and for the Developers.', tier: 'rule' },
+  'TEAM-01': { text: 'Developers start Sprint Backlog items from top to bottom, in the order a Developer confirmed at the start of the Sprint.', tier: 'team' },
+  'TEAM-02': { text: 'Product Backlog items and improvements are written as user stories: “As a … I want to … so that …”.', tier: 'team' },
+  'TEAM-03': { text: 'A Sprint starts only with sized user stories whose total stays within the team’s average velocity.', tier: 'team' },
+};
+const STORY = /^\s*as\b.+?\bwant\b.+?\bso\b/i;
+const isStory = s => STORY.test(s);
+const avg = a => a.length ? Math.round(a.reduce((x, y) => x + y, 0) / a.length * 10) / 10 : null;
+const POINTS = [1, 2, 3, 5, 8, 13, 20];
+const isGuide = o => RULES[o.rule].tier !== 'team';
+const STAGES = ['Team and goals', 'Sprint Planning', 'Sprint', 'Sprint Review', 'Sprint Retrospective', 'Sprint summary'];
+const ROLES = ['Developer', 'Product Owner', 'Scrum Master'];
+const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+function newSprint(n) {
+  return { n, goal: '', selected: [], order: [], confirmedBy: null, confirmer: '', planningClosed: false, day: 1, length: 10, daily: {}, status: {}, dodChecks: {},
+    reviewHeld: false, reviewSkipped: false, stakeholders: false, goalMet: null, retroHeld: false, actions: [], happiness: null };
+}
+function team(name, members, backlog, extras) {
+  return Object.assign({ name, members, productGoal: '', dod: [], backlog, stage: 0, reached: 0, sprint: newSprint(1), overrides: [], history: [], velocity: [], uid: 0 }, extras);
+}
+const story = (id, title, points, fits = true) => ({ id, title, points, markedBig: !fits });
+// SG-200: an item is too big when the Developers mark it so, or when its points exceed the team's average velocity.
+const bigReason = (b, t) => { const v = avg(t.velocity);
+  if (b.markedBig) return 'the Developers marked it as too big';
+  if (b.points && v !== null && b.points > v) return `its ${b.points} points are more than the average velocity of ${v}`;
+  return null; };
+const state = {
+  current: 'atlas',
+  teams: {
+    atlas: team('Team Atlas', [
+      { name: 'Mara Visser', role: 'Product Owner' }, { name: 'Joost Bakker', role: 'Scrum Master' },
+      { name: 'Lena Smit', role: 'Developer' }, { name: 'Ravi Kapoor', role: 'Developer' },
+      { name: 'Sofie de Wit', role: 'Developer' }, { name: 'Tom Hendriks', role: 'Developer' } ], [
+      story('a1', 'As a customer I want to reset my password by email so that I can sign in again without calling support', 5),
+      story('a2', 'As a customer I want to see my order status on my account page so that I know when my order arrives', 3),
+      story('a3', 'Replace the legacy payment provider', 20, false),
+      story('a4', 'As a security officer I want to see failed sign-ins so that I can spot attacks early', 3),
+      story('a5', 'As a customer I want to download my invoices as PDF so that I can file them for my accounts', 5),
+      story('a6', 'As a customer I want to close my account so that my personal data is removed', null) ], {
+      velocity: [14, 17, 16],
+      productGoal: 'Customers can manage their own account without calling support, cutting account-related calls by half.',
+      dod: ['Code reviewed by another Developer', 'Automated tests pass in the pipeline', 'Tested by the team, no open defects', 'Deployed to the acceptance environment', 'User documentation updated'] }),
+    borealis: team('Team Borealis', [
+      { name: 'Erik Jansen', role: 'Product Owner' }, { name: 'Noor Amrani', role: 'Product Owner' },
+      { name: 'Pieter Vos', role: 'Developer' }, { name: 'Anna Kok', role: 'Developer' }, { name: 'Daan Mulder', role: 'Developer' },
+      { name: 'Fleur Bos', role: 'Developer' }, { name: 'Sem Dekker', role: 'Developer' }, { name: 'Julia Peters', role: 'Developer' },
+      { name: 'Luuk Willems', role: 'Developer' }, { name: 'Iris Meijer', role: 'Developer' }, { name: 'Bram Koster', role: 'Developer' } ], [
+      story('b1', 'Migrate the warehouse database', 20, false),
+      story('b2', 'As an order picker I want to scan barcodes in the picking app so that I pick the right product', 5),
+      story('b3', 'As a store manager I want a daily stock report so that I can reorder on time', null) ], { velocity: [10, 12] }),
+  },
+};
+const T = () => state.teams[state.current];
+const S = () => T().sprint;
+const counts = t => ROLES.reduce((o, r) => (o[r] = t.members.filter(m => m.role === r).length, o), {});
+const sprintOverrides = t => t.overrides.filter(o => o.sprint === t.sprint.n);
+
+/* Gate: run a rule check; if it fails, open the override dialog. Guidance only warns. */
+let pending = null;
+function gate(ruleId, failed, detail, proceed, target) {
+  if (!failed) { proceed(); return; }
+  // An exception already logged this Sprint for the same rule, place and situation is not asked or logged again.
+  if (sprintOverrides(T()).some(o => o.rule === ruleId && o.target === target && o.detail === detail)) { proceed(); return; }
+  pending = { ruleId, detail, proceed, target };
+  applyFlags();
+  renderModal();
+}
+function renderModal() {
+  const m = document.getElementById('modal');
+  if (!pending) { m.innerHTML = ''; return; }
+  const r = RULES[pending.ruleId], confirmOnly = r.tier === 'confirm', guidance = r.tier === 'guidance' || confirmOnly, teamRule = r.tier === 'team';
+  m.innerHTML = `<div class="scrim" role="dialog" aria-modal="true" aria-labelledby="dlg-title">
+    <div class="dialog ${guidance ? 'warning' : ''}">
+      <span class="tag ${guidance ? 'warn' : 'block'}" style="justify-self:start">${confirmOnly ? 'Check before you continue' : guidance ? 'Guide guidance · warning' : teamRule ? 'Team rule · blocked' : 'Guide rule · blocked'}</span>
+      <h3 id="dlg-title">${esc(pending.detail)}</h3>
+      <blockquote>${esc(r.text)}<cite>${pending.ruleId} · ${teamRule ? 'team agreement, not in the Scrum Guide' : '2020 Scrum Guide'}</cite></blockquote>
+      ${guidance ? `<p class="note" style="margin:0">${confirmOnly ? 'Items that are not Done are left out of the Sprint Review and go back to the Product Backlog when the Sprint closes. You can go back and keep working instead.' : 'This is guidance, so you can continue. The warning is noted in the log.'}</p>` :
+      `<div class="block" style="display:grid;gap:6px"><label for="ov-reason">Why does the team need to go ahead anyway?</label>
+        <textarea id="ov-reason" placeholder="For example: the test environment is down until Thursday, so we deploy to acceptance next Sprint."></textarea>
+        <span class="note">Your reason is logged with the rule and shown in this Sprint's Retrospective, so the team can learn from it and avoid it next time.</span></div>`}
+      <div class="row" style="justify-content:flex-end">
+        <button class="btn quiet" id="ov-cancel">${guidance ? 'Go back' : 'Keep the rule'}</button>
+        <button class="btn ${guidance ? '' : 'danger'}" id="ov-go" ${guidance ? '' : 'disabled'}>${confirmOnly ? 'Start the Sprint Review' : guidance ? 'Continue' : 'Override and log'}</button>
+      </div></div></div>`;
+  const go = document.getElementById('ov-go'), reason = document.getElementById('ov-reason');
+  if (reason) { reason.addEventListener('input', () => { go.disabled = reason.value.trim().length < 10; }); reason.focus(); } else go.focus();
+  document.getElementById('ov-cancel').onclick = () => { pending = null; renderModal(); applyFlags(); };
+  go.onclick = () => {
+    const t = T();
+    t.overrides.push({ rule: pending.ruleId, kind: guidance ? 'warning' : 'override', reason: reason ? reason.value.trim() : 'Warning acknowledged', who: 'You', target: pending.target, sprint: t.sprint.n, stage: STAGES[t.stage], detail: pending.detail, day: t.stage === 2 ? t.sprint.day : null, time: new Date().toTimeString().slice(0, 5) });
+    const p = pending.proceed; pending = null; renderModal(); p(); render();
+  };
+}
+
+function renderTop() {
+  document.getElementById('teams').innerHTML = Object.entries(state.teams).map(([k, t]) =>
+    `<button aria-pressed="${k === state.current}" data-team="${k}">${esc(t.name)}</button>`).join('');
+  document.querySelectorAll('[data-team]').forEach(b => b.onclick = () => { state.current = b.dataset.team; render(); });
+  const t = T(), ov = sprintOverrides(t).filter(o => o.kind === 'override' && isGuide(o)).length;
+  document.getElementById('status').innerHTML = ov
+    ? `<span class="pill block" title="SG-245: While implementing only parts of Scrum is possible, the result is not Scrum.">Not Scrum this Sprint · ${ov} override${ov > 1 ? 's' : ''}</span>`
+    : `<span class="pill ok">Following the Scrum Guide</span>`;
+  document.getElementById('stages').innerHTML = STAGES.map((s, i) => {
+    const cls = i === t.stage ? 'current' : i <= t.reached ? 'done' : '';
+    const inner = `<span class="n">${i <= t.reached && i !== t.stage ? '✓' : i + 1}</span>${s}`;
+    return `<li class="${cls}">${i <= t.reached && i !== t.stage ? `<button class="stage-link" data-stage="${i}">${inner}</button>` : inner}</li>`;
+  }).join('');
+  document.querySelectorAll('[data-stage]').forEach(b => b.onclick = () => { t.stage = +b.dataset.stage; render(); });
+}
+
+const kindLabel = o => o.kind === 'warning' ? 'Warning accepted' : RULES[o.rule].tier === 'team' ? 'Team agreement overridden' : 'Guide rule overridden';
+const countKinds = list => ({ guide: list.filter(o => o.kind === 'override' && isGuide(o)).length, team: list.filter(o => o.kind === 'override' && !isGuide(o)).length, warn: list.filter(o => o.kind === 'warning').length });
+const tally = list => { const c = countKinds(list); return `${c.guide} Guide rule override${c.guide === 1 ? '' : 's'} · ${c.team} team agreement override${c.team === 1 ? '' : 's'} · ${c.warn} accepted warning${c.warn === 1 ? '' : 's'}`; };
+function renderLog() {
+  const t = T(), list = sprintOverrides(t);
+  const all = t.overrides.length;
+  document.getElementById('log').innerHTML = `<div class="logbox">
+    <h3>Override log · Sprint ${t.sprint.n}</h3>
+    ${list.length ? `<p class="note num" style="margin:0">${tally(list)}</p>` + list.map(o => { const r = RULES[o.rule], lbl = kindLabel(o);
+      return `<div class="entry" style="border-color:var(--${o.kind === 'warning' ? 'accent' : r.tier === 'team' ? 'muted' : 'warn'})">
+      <span class="mono">${o.rule} · ${lbl}</span>
+      <b style="font-weight:600">${esc(o.detail || '')}</b>
+      <span class="note">“${esc(r.text)}”</span>
+      ${o.kind === 'warning' ? '' : `<span>Reason: <q>${esc(o.reason)}</q></span>`}
+      <span class="note">${esc(o.who)} · ${esc(o.stage)}${o.day ? ` · day ${o.day}` : ''}${o.time ? ` · ${o.time}` : ''}</span></div>`; }).join('')
+    : `<p class="note" style="margin:0">No overrides yet. When the app blocks a step, you can override it with a reason. It lands here and goes to the Retrospective.</p>`}
+    ${all > list.length ? `<p class="note" style="margin:0">${all - list.length} more from earlier Sprints.</p>` : ''}
+  </div>
+  <div class="logbox"><h3>Rules checked here</h3>
+    <p class="note" style="margin:0">Blocks need a reason to override. Guidance only warns.</p>
+    <p class="note" style="margin:0">Team rules are this team's own agreements: Sprint Backlog top to bottom (TEAM-01), user story format (TEAM-02) and planning within average velocity (TEAM-03). They block like Guide rules, but overriding them doesn't count against following the Scrum Guide.</p></div>`;
+}
+
+const P = {};
+P[0] = t => {
+  const c = counts(t);
+  return `<div><span class="eyebrow">Stage 1 of 6</span><h1>Set up ${esc(t.name)}</h1></div>
+  <section class="block" data-flag="members"><h2>Scrum Team</h2>
+    <div class="row">
+      <span class="tag ${c['Product Owner'] === 1 ? 'ok' : 'block'}">${c['Product Owner']} Product Owner${c['Product Owner'] === 1 ? '' : 's'}</span>
+      <span class="tag ${c['Scrum Master'] === 1 ? 'ok' : 'block'}">${c['Scrum Master']} Scrum Master${c['Scrum Master'] === 1 ? '' : 's'}</span>
+      <span class="tag ${c.Developer > 0 ? 'ok' : 'block'}">${c.Developer} Developers</span>
+      <span class="tag ${t.members.length <= 10 ? 'ok' : 'warn'}">${t.members.length} people</span></div>
+    <div class="tbl"><table><thead><tr><th>Name</th><th>Accountability</th></tr></thead><tbody>
+    ${t.members.map((m, i) => `<tr><td>${esc(m.name)}</td><td><select id="role-${i}" data-role="${i}" aria-label="Accountability of ${esc(m.name)}">
+      ${ROLES.map(r => `<option ${r === m.role ? 'selected' : ''}>${r}</option>`).join('')}</select></td></tr>`).join('')}
+    </tbody></table></div></section>
+  <section class="block" data-flag="pgoal"><label for="pgoal">Product Goal</label>
+    <textarea id="pgoal" placeholder="The future state of the product the team plans against.">${esc(t.productGoal)}</textarea></section>
+  <section class="block" data-flag="dod"><h2>Definition of Done</h2>
+    ${t.dod.length ? `<ol style="margin:0;padding-left:20px">${t.dod.map(d => `<li>${esc(d)}</li>`).join('')}</ol>` : `<p class="note" style="margin:0">No Definition of Done yet.</p>`}
+    <div class="row"><input type="text" id="dod-new" placeholder="Add a quality measure, for example: Security scan passes" style="flex:1;min-width:200px"><button class="btn ghost" id="dod-add">Add</button></div></section>
+  <div class="row"><button class="btn" id="next">Start Sprint ${t.sprint.n} Planning</button></div>`;
+};
+P[1] = t => {
+  const s = t.sprint, v = avg(t.velocity);
+  const forecast = t.backlog.filter(b => s.selected.includes(b.id)).reduce((x, b) => x + (b.points || 0), 0);
+  return `<div><span class="eyebrow">Stage 2 of 6 · timebox 4 h for a 2-week Sprint</span><h1>Sprint ${s.n} Planning</h1></div>
+  <section class="block" data-flag="sgoal"><h2>Why is this Sprint valuable?</h2><label for="sgoal">Sprint Goal</label>
+    <textarea id="sgoal" placeholder="The single objective for this Sprint.">${esc(s.goal)}</textarea>
+    <span class="note">Product Goal: ${esc(t.productGoal || 'not set')}</span></section>
+  <section class="block"><h2>What can be Done this Sprint?</h2><p class="note" style="margin:0">Developers select items, ordered by the Product Owner.</p>
+    <div class="tbl"><table><thead><tr><th></th><th>Order</th><th>Product Backlog item</th><th>Points</th><th></th></tr></thead><tbody>
+    ${t.backlog.map((b, i) => `<tr data-flag="item-${b.id}"><td><input type="checkbox" id="sel-${b.id}" data-sel="${b.id}" ${s.selected.includes(b.id) ? 'checked' : ''} aria-label="Select item ${i + 1}"></td>
+      <td class="num">${i + 1}</td><td>${b.improvement ? '<span class="tag ok">Improvement</span> ' : ''}${esc(b.title)}</td><td class="mono">${b.points ?? 'Not sized'}</td>
+      <td><div class="row" style="gap:4px">${bigReason(b, t) ? `<span class="tag warn" title="${esc(bigReason(b, t))}">Too big for one Sprint${b.markedBig ? ' · marked' : ''}</span>` : ''}<button class="btn ghost" data-big="${b.id}" style="padding:2px 8px;font-size:12px" title="Developers mark items that can't be Done within one Sprint">${b.markedBig ? 'Unmark too big' : 'Mark too big'}</button>${isStory(b.title) ? '' : '<span class="tag warn">Not a user story</span>'}</div></td></tr>`).join('')}
+    </tbody></table></div>
+    <div class="row" data-flag="forecast"><span class="tag ${v === null ? 'warn' : forecast > v ? 'block' : 'ok'} num">Forecast ${forecast} points</span>
+      <span class="note">${v === null ? 'No velocity yet: it is measured from the first Sprint.' : `Average velocity ${v} points over the last ${t.velocity.length} Sprints${t.history.length < t.velocity.length ? ' (includes example data)' : ''}`}</span></div>
+    <div class="row" data-flag="story-new"><input type="text" id="story-new" placeholder="As a … I want to … so that …" style="flex:1;min-width:220px" aria-label="New user story">
+      <select id="story-pts" aria-label="Story points" style="width:auto"><option value="">Not sized</option>${POINTS.map(p => `<option>${p}</option>`).join('')}</select>
+      <button class="btn ghost" id="story-add">Add to Product Backlog</button></div></section>
+  <section class="block"><h2>How will the chosen work get done?</h2>
+    <p class="note" style="margin:0">The Developers plan the work themselves. Nobody outside the Developers assigns tasks.</p></section>
+  <div class="row"><button class="btn" id="next">Close Sprint Planning and start the Sprint</button></div>`;
+};
+P[2] = t => {
+  const s = t.sprint, items = s.order.map(id => t.backlog.find(b => b.id === id));
+  const col = st => items.filter(b => (s.status[b.id] || 'todo') === st);
+  const card = b => {
+    const st = s.status[b.id] || 'todo';
+    return `<div class="card" data-flag="item-${b.id}"><span><span class="mono">#${s.order.indexOf(b.id) + 1}</span> ${esc(b.title)}</span><div class="row"><span class="mono">${b.points ?? '–'} pt</span>
+      ${st === 'todo' ? `<button class="btn ghost" data-start="${b.id}" ${s.confirmedBy ? '' : 'disabled'}>Start</button>` : st === 'doing' ? `<button class="btn ghost" data-done="${b.id}">Check Done</button>` : '<span class="tag ok">Done</span>'}</div></div>`;
+  };
+  const dodItem = items.find(b => s.checking === b.id);
+  return `<div><span class="eyebrow">Stage 3 of 6 · working day ${s.day} of ${s.length}</span><h1>Sprint ${s.n}</h1></div>
+  <div class="callout info"><b>Sprint Goal:</b> ${esc(s.goal || 'none')}</div>
+  <section class="block" data-flag="order"><h2>Sprint Backlog order</h2>
+    ${s.confirmedBy ? `<div class="callout ok">Order confirmed by ${esc(s.confirmedBy)}. Start items from the top.</div>` : `<p class="note" style="margin:0">Put the items in priority order, top first. A Developer confirms the order before anyone starts work, because the Sprint Backlog belongs to the Developers.</p>`}
+    <div class="tbl"><table><tbody>${items.map((b, i) => `<tr><td class="num mono">#${i + 1}</td><td>${esc(b.title)}</td>
+      <td style="white-space:nowrap">${s.confirmedBy ? '' : `<button class="btn quiet" data-up="${i}" ${i === 0 ? 'disabled' : ''} aria-label="Move up">↑</button> <button class="btn quiet" data-down="${i}" ${i === items.length - 1 ? 'disabled' : ''} aria-label="Move down">↓</button>`}</td></tr>`).join('')}</tbody></table></div>
+    ${s.confirmedBy ? '' : `<div class="row"><select id="confirmer" aria-label="Team member who confirms" style="max-width:260px">
+      <option value="">Who confirms the order?</option>${t.members.map(m => `<option value="${esc(m.name)}" ${s.confirmer === m.name ? 'selected' : ''}>${esc(m.name)} (${m.role})</option>`).join('')}</select>
+      <button class="btn" id="confirm-order" ${s.confirmer ? '' : 'disabled'}>Confirm order</button></div>`}</section>
+  <section class="block"><h2>Daily Scrum · 15 minutes</h2>
+    <div class="days" data-flag="days">${Array.from({ length: s.length }, (_, i) => i + 1).map(d =>
+      `<span data-flag="day-${d}" class="day ${s.daily[d] === 'held' ? 'held' : s.daily[d] === 'skipped' ? 'skipped' : ''} ${d === s.day ? 'today' : ''}" title="Day ${d}">${d}</span>`).join('')}</div>
+    <div class="row">${s.daily[s.day] === 'held' ? `<span class="tag ok">Daily Scrum held today</span>` : `<button class="btn ghost" id="daily">Hold today's Daily Scrum</button>`}
+      ${s.day < s.length ? `<button class="btn quiet" id="nextday">Go to day ${s.day + 1}</button>` : ''}</div></section>
+  ${dodItem ? `<section class="block" style="background:var(--bg);border-radius:10px;padding:14px"><h2>Definition of Done for “${esc(dodItem.title)}”</h2>
+    ${t.dod.map((d, i) => `<label style="font-weight:400;display:flex;gap:8px;align-items:center"><input type="checkbox" id="dod-${i}" data-dod="${i}" ${(s.dodChecks[dodItem.id] || [])[i] ? 'checked' : ''}> ${esc(d)}</label>`).join('')}
+    <div class="row"><button class="btn" id="mark-done">Mark Done</button><button class="btn quiet" id="dod-close">Cancel</button></div></section>` : ''}
+  <section class="block" data-flag="board"><h2>Sprint Backlog</h2><div class="board">
+    <div class="col"><b>To do</b>${col('todo').map(card).join('')}</div>
+    <div class="col"><b>In progress</b>${col('doing').map(card).join('')}</div>
+    <div class="col"><b>Done</b>${col('done').map(card).join('')}</div></div></section>
+  <div class="row"><button class="btn" id="next">Go to Sprint Review</button></div>`;
+};
+P[3] = t => {
+  const s = t.sprint, items = t.backlog.filter(b => s.selected.includes(b.id));
+  const done = items.filter(b => s.status[b.id] === 'done'), undone = items.filter(b => s.status[b.id] !== 'done');
+  return `<div><span class="eyebrow">Stage 4 of 6 · timebox 2 h for a 2-week Sprint</span><h1>Sprint ${s.n} Review</h1></div>
+  <div class="callout info"><b>Sprint Goal:</b> ${esc(s.goal || 'none')}</div>
+  <section class="block"><h2>Increment to inspect</h2>
+    ${done.length ? `<ul style="margin:0;padding-left:20px">${done.map(b => `<li>${esc(b.title)}</li>`).join('')}</ul>` : '<p class="note" style="margin:0">Nothing met the Definition of Done this Sprint.</p>'}
+    ${undone.length ? `<div class="callout warn">Not Done, so not shown and returned to the Product Backlog: ${undone.map(b => esc(b.title)).join('; ')}.</div>` : ''}</section>
+  <section class="block" data-flag="review"><h2>Inspect and adapt</h2>
+    <label style="font-weight:400;display:flex;gap:8px;align-items:center"><input type="checkbox" id="stake" ${s.stakeholders ? 'checked' : ''}> Key stakeholders took part</label>
+    <div class="row"><span>Was the Sprint Goal met?</span>
+      <button class="btn ${s.goalMet === true ? '' : 'quiet'}" id="met-yes">Yes</button><button class="btn ${s.goalMet === false ? '' : 'quiet'}" id="met-no">No</button></div></section>
+  <div class="row"><button class="btn" id="next">Hold Review and go to Retrospective</button><button class="btn quiet" id="skip">Skip the Review</button></div>`;
+};
+P[4] = t => {
+  const s = t.sprint, list = sprintOverrides(t).filter(o => o.kind === 'override');
+  const prev = t.history.at(-1);
+  return `<div><span class="eyebrow">Stage 5 of 6 · timebox 1.5 h for a 2-week Sprint</span><h1>Sprint ${s.n} Retrospective</h1></div>
+  ${prev && prev.actions.length ? `<section class="block"><h2>Improvements from last Sprint</h2><ul style="margin:0;padding-left:20px">${prev.actions.map(a => `<li>${esc(a.title)}${s.status[a.id] === 'done' ? ' <span class="tag ok">Done</span>' : ''}</li>`).join('')}</ul></section>` : ''}
+  <section class="block"><h2>Exceptions this Sprint</h2>
+    ${list.length ? `<div class="tbl"><table><thead><tr><th>Rule</th><th>What happened</th><th>Where</th><th>Reason given</th></tr></thead><tbody>
+      ${list.map(o => `<tr><td class="mono">${o.rule}<br><span class="note">${kindLabel(o)}</span></td><td>${esc(o.detail || '')}</td><td>${esc(o.stage)}${o.day ? `, day ${o.day}` : ''}</td><td>${esc(o.reason)}</td></tr>`).join('')}</tbody></table></div>
+      <p class="note" style="margin:0">Ask: what made each exception necessary, and what would let the team avoid it next Sprint?</p>`
+    : '<div class="callout ok">No rules were overridden this Sprint.</div>'}</section>
+  <section class="block" data-flag="act-new"><h2>Improvements for next Sprint</h2>
+    <p class="note" style="margin:0">Write each improvement as a user story. It goes to the top of the Product Backlog as an improvement story, ready to select in the next Sprint Planning.</p>
+    ${s.actions.length ? `<ul style="margin:0;padding-left:20px">${s.actions.map(a => `<li>${esc(a.title)} <span class="mono">${a.points ?? 'not sized'}${a.points ? ' pt' : ''}</span></li>`).join('')}</ul>` : ''}
+    <div class="row"><input type="text" id="act-new" placeholder="As a Developer I want to … so that …" style="flex:1;min-width:220px" aria-label="New improvement story">
+      <select id="act-pts" aria-label="Story points" style="width:auto"><option value="">Not sized</option>${POINTS.map(p => `<option>${p}</option>`).join('')}</select>
+      <button class="btn ghost" id="act-add">Add</button></div></section>
+  <section class="block"><h2>How happy were you this Sprint?</h2>
+    <div class="faces" role="group" aria-label="Happiness from 1 to 5">${[1, 2, 3, 4, 5].map(n => `<button aria-pressed="${s.happiness === n}" data-happy="${n}">${n}</button>`).join('')}</div>
+    <span class="note">1 is very unhappy, 5 is very happy. Feeds the team happiness metric.</span></section>
+  <div class="row"><button class="btn" id="next">Close Sprint ${s.n}</button></div>`;
+};
+P[5] = t => {
+  const s = t.sprint, items = t.backlog.filter(b => s.selected.includes(b.id));
+  const done = items.filter(b => s.status[b.id] === 'done').length;
+  const ov = sprintOverrides(t).filter(o => o.kind === 'override').length;
+  const held = Object.values(s.daily).filter(v => v === 'held').length;
+  const pts = items.filter(b => s.status[b.id] === 'done').reduce((x, b) => x + (b.points || 0), 0);
+  const kc = countKinds(sprintOverrides(t));
+  return `<div><span class="eyebrow">Stage 6 of 6</span><h1>Sprint ${s.n} summary</h1></div>
+  <div class="metrics">
+    <div class="metric"><b class="num">${pts} pt</b><span>Velocity this Sprint (average was ${avg(t.velocity) ?? '–'})</span></div>
+    <div class="metric"><b>${s.goalMet === true ? 'Met' : s.goalMet === false ? 'Not met' : 'Not recorded'}</b><span>Sprint Goal (predictability)</span></div>
+    <div class="metric"><b class="num">${done} of ${items.length}</b><span>Items Done (throughput)</span></div>
+    <div class="metric"><b class="num">${held} of ${s.day}</b><span>Daily Scrums held</span></div>
+    <div class="metric"><b class="num">${kc.guide}</b><span>Guide rule overrides</span></div>
+    <div class="metric"><b class="num">${kc.team}</b><span>Team agreement overrides</span></div>
+    <div class="metric"><b class="num">${kc.warn}</b><span>Accepted warnings</span></div>
+    <div class="metric"><b class="num">${s.happiness ?? '–'}</b><span>Team happiness (1 to 5)</span></div>
+  </div>
+  <p class="note" style="margin:0">In the full app these feed the hypothesis metrics over 6 or more Sprints: flow, predictability, happiness and override rate, plus DORA once a delivery pipeline is connected.</p>
+  <div class="row"><button class="btn" id="next">Start Sprint ${s.n + 1} Planning</button></div>`;
+};
+
+function wire(t) {
+  const s = t.sprint, $ = id => document.getElementById(id), on = (id, f) => { const e = $(id); if (e) e.onclick = f; };
+  const advance = () => { t.stage++; render(); };
+  if (t.stage === 0) {
+    document.querySelectorAll('[data-role]').forEach(el => el.onchange = () => { t.members[+el.dataset.role].role = el.value; render(); });
+    $('pgoal').oninput = e => { t.productGoal = e.target.value; };
+    on('dod-add', () => { const v = $('dod-new').value.trim(); if (v) { t.dod.push(v); render(); } });
+    on('next', () => {
+      const c = counts(t);
+      gate('SG-095', c['Product Owner'] > 1, `${t.name} has ${c['Product Owner']} Product Owners`, () =>
+      gate('SG-063', c['Product Owner'] !== 1 && c['Product Owner'] <= 1 || c['Scrum Master'] !== 1 || c.Developer < 1, `${t.name} needs exactly one Product Owner, one Scrum Master and at least one Developer`, () =>
+      gate('SG-068', t.members.length > 10, `${t.name} has ${t.members.length} people`, () =>
+      gate('SG-194', !t.productGoal.trim(), 'There is no Product Goal yet', () =>
+      gate('SG-240', t.dod.length === 0, 'There is no Definition of Done yet', advance, 'dod'), 'pgoal'), 'members'), 'members'), 'members');
+    });
+  }
+  if (t.stage === 1) {
+    $('sgoal').oninput = e => { s.goal = e.target.value; };
+    document.querySelectorAll('[data-sel]').forEach(el => el.onchange = () => {
+      const b = t.backlog.find(x => x.id === el.dataset.sel);
+      if (!el.checked) { s.selected = s.selected.filter(x => x !== b.id); render(); return; }
+      el.checked = false;
+      gate('TEAM-02', !isStory(b.title), `“${b.title}” is not written as a user story`, () =>
+      gate('SG-200', !!bigReason(b, t), `“${b.title}” can't be Done within one Sprint: ${bigReason(b, t)}`, () => { s.selected.push(b.id); render(); }, `item-${b.id}`), `item-${b.id}`);
+    });
+    document.querySelectorAll('[data-big]').forEach(el => el.onclick = () => {
+      const b = t.backlog.find(x => x.id === el.dataset.big);
+      b.markedBig = !b.markedBig;
+      if (b.markedBig) s.selected = s.selected.filter(x => x !== b.id);
+      render();
+    });
+    on('story-add', () => {
+      const v = $('story-new').value.trim(), p = $('story-pts').value;
+      if (!v) return;
+      gate('TEAM-02', !isStory(v), 'This item is not written as a user story', () => { t.backlog.push(story(`${state.current}-n${++t.uid}`, v, p ? +p : null)); render(); }, 'story-new');
+    });
+    on('next', () => {
+      const sel = t.backlog.filter(b => s.selected.includes(b.id)), v = avg(t.velocity);
+      const sized = sel.filter(b => b.points), unsized = sel.length - sized.length, total = sized.reduce((x, b) => x + b.points, 0);
+      gate('SG-150', !s.goal.trim(), 'Sprint Planning cannot close without a Sprint Goal', () =>
+      gate('TEAM-03', sized.length === 0 || unsized > 0, sized.length === 0 ? 'No sized user stories are selected for this Sprint' : `${unsized} selected stor${unsized > 1 ? 'ies are' : 'y is'} not sized`, () =>
+      gate('TEAM-03', v !== null && total > v, `The forecast of ${total} points is more than the average velocity of ${v} points`, () => {
+        s.planningClosed = true; s.order = sel.map(b => b.id); advance(); }, 'forecast'), 'forecast'), 'sgoal');
+    });
+  }
+  if (t.stage === 2) {
+    on('daily', () => { s.daily[s.day] = 'held'; render(); });
+    on('nextday', () => gate('SG-164', s.daily[s.day] !== 'held', `Day ${s.day} has no Daily Scrum yet`, () => { if (s.daily[s.day] !== 'held') s.daily[s.day] = 'skipped'; s.day++; render(); }, `day-${s.day}`));
+    const swap = (i, j) => { [s.order[i], s.order[j]] = [s.order[j], s.order[i]]; render(); };
+    document.querySelectorAll('[data-up]').forEach(el => el.onclick = () => swap(+el.dataset.up, +el.dataset.up - 1));
+    document.querySelectorAll('[data-down]').forEach(el => el.onclick = () => swap(+el.dataset.down, +el.dataset.down + 1));
+    const cf = $('confirmer'); if (cf) cf.onchange = () => { s.confirmer = cf.value; render(); };
+    on('confirm-order', () => {
+      const m = t.members.find(x => x.name === s.confirmer);
+      gate('SG-216', m.role !== 'Developer', `${m.name} is the ${m.role}. A Developer confirms the Sprint Backlog order`, () => { s.confirmedBy = s.confirmer; render(); }, 'order');
+    });
+    document.querySelectorAll('[data-start]').forEach(el => el.onclick = () => {
+      const id = el.dataset.start, next = s.order.find(x => (s.status[x] || 'todo') === 'todo');
+      const b = t.backlog.find(x => x.id === id), top = t.backlog.find(x => x.id === next);
+      gate('TEAM-01', id !== next, `“${b.title}” is not the next item; “${top.title}” is on top`, () => { s.status[id] = 'doing'; render(); }, `item-${id}`);
+    });
+    document.querySelectorAll('[data-done]').forEach(el => el.onclick = () => { s.checking = el.dataset.done; render(); });
+    document.querySelectorAll('[data-dod]').forEach(el => el.onchange = () => { const a = s.dodChecks[s.checking] = s.dodChecks[s.checking] || []; a[+el.dataset.dod] = el.checked; });
+    on('dod-close', () => { s.checking = null; render(); });
+    on('mark-done', () => {
+      const a = s.dodChecks[s.checking] || [], missing = t.dod.filter((_, i) => !a[i]).length, id = s.checking;
+      gate('SG-233', missing > 0, `${missing} Definition of Done item${missing > 1 ? 's are' : ' is'} not met`, () => { s.status[id] = 'done'; s.checking = null; render(); }, `item-${id}`);
+    });
+    on('next', () => {
+      const open = s.order.filter(id => s.status[id] !== 'done').length;
+      gate('SG-125', s.day < s.length, `The Sprint has ${s.length - s.day} working day${s.length - s.day > 1 ? 's' : ''} left`, () =>
+      gate('SG-164', s.daily[s.day] !== 'held', `Day ${s.day} has no Daily Scrum yet`, () => { if (s.daily[s.day] !== 'held') s.daily[s.day] = 'skipped';
+      gate('SG-238', open > 0, `${open} Sprint Backlog item${open > 1 ? 's are' : ' is'} not Done. Start the Sprint Review anyway?`, advance, 'board'); }, `day-${s.day}`), 'days');
+    });
+  }
+  if (t.stage === 3) {
+    $('stake').onchange = e => { s.stakeholders = e.target.checked; };
+    on('met-yes', () => { s.goalMet = true; render(); });
+    on('met-no', () => { s.goalMet = false; render(); });
+    on('next', () => { s.reviewHeld = true; advance(); });
+    on('skip', () => gate('SG-121', true, 'Skipping the Sprint Review', () => { s.reviewSkipped = true; advance(); }, 'review'));
+  }
+  if (t.stage === 4) {
+    on('act-add', () => {
+      const v = $('act-new').value.trim(), p = $('act-pts').value;
+      if (!v) return;
+      gate('TEAM-02', !isStory(v), 'This improvement is not written as a user story', () => { s.actions.push({ id: `${state.current}-i${++t.uid}`, title: v, points: p ? +p : null, markedBig: false, improvement: true }); render(); }, 'act-new');
+    });
+    document.querySelectorAll('[data-happy]').forEach(el => el.onclick = () => { s.happiness = +el.dataset.happy; render(); });
+    on('next', () => gate('SG-185', s.actions.length === 0, 'No improvement is planned for next Sprint', () => { s.retroHeld = true; advance(); }, 'act-new'));
+  }
+  if (t.stage === 5) {
+    on('next', () => {
+      t.history.push(s);
+      const doneIds = Object.keys(s.status).filter(k => s.status[k] === 'done');
+      t.velocity.push(t.backlog.filter(b => doneIds.includes(b.id)).reduce((x, b) => x + (b.points || 0), 0));
+      if (t.velocity.length > 3) t.velocity.shift();
+      t.backlog = [...s.actions, ...t.backlog.filter(b => !doneIds.includes(b.id))];
+      t.sprint = newSprint(s.n + 1); t.stage = 1; t.reached = 1; render();
+    });
+  }
+}
+
+function applyFlags() {
+  const t = T(), marks = {};
+  sprintOverrides(t).forEach(o => { if (o.target) (marks[o.target] = marks[o.target] || []).push(o); });
+  document.querySelectorAll('[data-flag]').forEach(el => {
+    const f = el.dataset.flag, list = marks[f];
+    el.classList.toggle('flag-pending', !!pending && pending.target === f);
+    el.classList.toggle('flag-override', !!list && list.some(o => o.kind === 'override'));
+    el.classList.toggle('flag-warning', !!list && list.every(o => o.kind === 'warning'));
+    if (list) el.dataset.flagRules = [...new Set(list.map(o => o.rule))].join(' · '); else delete el.dataset.flagRules;
+  });
+  if (pending) { const el = document.querySelector(`[data-flag="${pending.target}"]`); if (el) el.scrollIntoView({ block: 'center', behavior: 'instant' }); }
+}
+function render() {
+  const t = T();
+  t.reached = Math.max(t.reached, t.stage);
+  renderTop(); renderLog();
+  document.getElementById('panel').innerHTML = (t.stage > 0 ? `<button class="btn quiet" id="back" style="justify-self:start">← Back to ${STAGES[t.stage - 1]}</button>` : '') + P[t.stage](t);
+  const back = document.getElementById('back'); if (back) back.onclick = () => { t.stage--; render(); };
+  wire(t);
+  applyFlags();
+}
+render();
+</script>
+</body>
+</html>
