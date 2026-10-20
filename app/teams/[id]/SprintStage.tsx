@@ -43,6 +43,7 @@ export function SprintStage({ team, sprint, pending, log, checking }: {
 
       <section {...flag('block', 'order', pending, log)}>
         <h2>Sprint Backlog order</h2>
+        {sprint.items.length === 0 && <div className="callout warn" id="empty-sprint">No stories are in this Sprint. Go back to Sprint Planning to select them.</div>}
         {sprint.confirmedBy
           ? <div className="callout ok" id="order-confirmed">Order confirmed by {sprint.confirmedBy}. Start items from the top.</div>
           : <p className="note">Put the items in priority order, top first. A Developer confirms the order before anyone starts work, because the Sprint Backlog belongs to the Developers.</p>}

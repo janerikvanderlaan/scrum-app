@@ -1,12 +1,12 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { getTeam, listExceptions } from '@/src/db/teams';
-import { followsScrum, pendingFindings } from '@/src/rules';
+import { getTeam } from '@/src/db/teams';
+import { activeExceptions, followsScrum, pendingFindings } from '@/src/rules';
 import { STAGES } from '@/src/workflow';
 import { goToStage } from './actions';
 import { DecisionDialog } from './DecisionDialog';
 import { ExceptionLog } from './ExceptionLog';
-import { findingsFor, intentFields, loadTeamData, parseIntent } from './intents';
+import { findingsFor, intentFields, loadLog, loadTeamData, parseIntent } from './intents';
 import { PlanningStage } from './PlanningStage';
 import { SprintStage } from './SprintStage';
 import { TeamStage } from './TeamStage';
@@ -20,7 +20,9 @@ export default async function TeamPage({ params, searchParams }: {
   const [{ id }, query] = await Promise.all([params, searchParams]);
   const team = await getTeam(decodeURIComponent(id));
   if (!team) notFound();
-  const [log, data] = await Promise.all([listExceptions(team.id, team.sprintNumber), loadTeamData(team)]);
+  const [fullLog, data] = await Promise.all([loadLog(team), loadTeamData(team)]);
+  // Resolved exceptions stay visible in the log but no longer count or flag the screen.
+  const log = activeExceptions(fullLog);
   const intent = parseIntent(key => query[key]);
   const pending = intent ? pendingFindings(findingsFor(team, data, intent), log, team.sprintNumber)[0] : undefined;
 
@@ -53,7 +55,7 @@ export default async function TeamPage({ params, searchParams }: {
             </>
           )}
         </main>
-        <ExceptionLog sprint={team.sprintNumber} log={log} />
+        <ExceptionLog sprint={team.sprintNumber} log={fullLog} />
       </div>
 
       {pending && intent && <DecisionDialog teamId={team.id} finding={pending} fields={intentFields(intent)} error={query.error} />}

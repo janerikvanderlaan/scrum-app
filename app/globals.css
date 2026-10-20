@@ -118,3 +118,5 @@ tr.flag-warning td { background: var(--accent-soft); }
 .check-all { font-weight: 600; padding-bottom: 4px; border-bottom: 1px solid var(--line); }
 .rule-explain { margin: 0; font-size: 14px; color: var(--muted); }
 input[type="checkbox"] { flex: none; min-width: 0; width: 16px; height: 16px; padding: 0; margin: 0; accent-color: var(--accent); }
+.log li.resolved { opacity: .65; }
+.log li.resolved .tag { margin-left: 6px; }

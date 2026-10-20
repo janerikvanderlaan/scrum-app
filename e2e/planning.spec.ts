@@ -63,7 +63,7 @@ test('closing Sprint Planning needs a Sprint Goal, sized stories and a forecast 
   await page.getByRole('button', { name: 'Remove item 5' }).click();
   await selectItem(page, 6);
   await page.click('#next');
-  await expect(title(page)).toHaveText('1 selected story is not sized');
+  await expect(title(page)).toHaveText('There are User Stories without sizing added to the Sprint');
   await page.fill('#ov-reason', 'Sizing it in the first Daily Scrum');
   await page.click('#ov-go');
   await expect(page.locator('h1')).toHaveText('Sprint 1');

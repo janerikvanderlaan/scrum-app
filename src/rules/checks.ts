@@ -33,13 +33,31 @@ export const isStory = (text: string): boolean => STORY.test(text);
 export const averageVelocity = (velocities: readonly number[]): number | null =>
   velocities.length ? Math.round((velocities.reduce((x, y) => x + y, 0) / velocities.length) * 10) / 10 : null;
 
-/** SG-200: why an item is too big for one Sprint, or null when it fits. */
-export function tooBigReason(item: BacklogItem, velocities: readonly number[]): string | null {
+/**
+ * The most points that fit in one Sprint: the average velocity plus the team's allowed deviation
+ * (a team setting, in percent), rounded to one decimal. Null while there is no velocity yet.
+ */
+export function velocityLimit(velocities: readonly number[], deviation = 0): number | null {
   const v = averageVelocity(velocities);
+  return v === null ? null : Math.round(v * (1 + deviation / 100) * 10) / 10;
+}
+
+/** How the limit reads in a message: the average alone, or the average plus the allowed deviation. */
+function limitText(velocities: readonly number[], deviation: number): string {
+  const v = averageVelocity(velocities);
+  return deviation ? `${velocityLimit(velocities, deviation)} points (average velocity ${v} plus ${deviation}%)` : `the average velocity of ${v}`;
+}
+
+/** SG-200: why an item is too big for one Sprint, or null when it fits. */
+export function tooBigReason(item: BacklogItem, velocities: readonly number[], deviation = 0): string | null {
+  const limit = velocityLimit(velocities, deviation);
   if (item.markedBig) return 'the Developers marked it as too big';
-  if (item.points && v !== null && item.points > v) return `its ${item.points} points are more than the average velocity of ${v}`;
+  if (item.points && limit !== null && item.points > limit) return `its ${item.points} points are more than ${limitText(velocities, deviation)}`;
   return null;
 }
+
+/** The rules teamChecks applies; their exceptions resolve once the team setup is fixed. */
+export const TEAM_SETUP_RULES: readonly RuleId[] = ['SG-095', 'SG-063', 'SG-068', 'SG-194', 'SG-240'];
 
 /** Team and goals stage, in the order the app asks them. */
 export function teamChecks(team: { name: string; members: readonly Member[]; productGoal: string; dod: readonly unknown[] }): Finding[] {
@@ -56,8 +74,8 @@ export function teamChecks(team: { name: string; members: readonly Member[]; pro
 }
 
 /** Closing Sprint Planning, in the order the app asks them. */
-export function planningChecks(goal: string, selected: readonly BacklogItem[], velocities: readonly number[]): Finding[] {
-  const v = averageVelocity(velocities);
+export function planningChecks(goal: string, selected: readonly BacklogItem[], velocities: readonly number[], deviation = 0): Finding[] {
+  const limit = velocityLimit(velocities, deviation);
   const sized = selected.filter(b => b.points);
   const unsized = selected.length - sized.length;
   const total = sized.reduce((x, b) => x + (b.points ?? 0), 0);
@@ -66,19 +84,22 @@ export function planningChecks(goal: string, selected: readonly BacklogItem[], v
   if (sized.length === 0 || unsized > 0)
     findings.push({
       rule: 'TEAM-03',
-      detail: sized.length === 0 ? 'No sized user stories are selected for this Sprint' : `${unsized} selected stor${unsized > 1 ? 'ies are' : 'y is'} not sized`,
+      detail: selected.length === 0 ? 'No user stories are selected for this Sprint' : 'There are User Stories without sizing added to the Sprint',
       target: 'forecast',
     });
-  if (v !== null && total > v)
-    findings.push({ rule: 'TEAM-03', detail: `The forecast of ${total} points is more than the average velocity of ${v} points`, target: 'forecast' });
+  if (limit !== null && total > limit) {
+    const v = averageVelocity(velocities);
+    const over = deviation ? `${limit} points (average velocity ${v} plus ${deviation}%)` : `the average velocity of ${v} points`;
+    findings.push({ rule: 'TEAM-03', detail: `The forecast of ${total} points is more than ${over}`, target: 'forecast' });
+  }
   return findings;
 }
 
 /** Selecting one Product Backlog item for the Sprint. */
-export function selectionChecks(item: BacklogItem, velocities: readonly number[]): Finding[] {
+export function selectionChecks(item: BacklogItem, velocities: readonly number[], deviation = 0): Finding[] {
   const findings: Finding[] = [];
   if (!isStory(item.title)) findings.push({ rule: 'TEAM-02', detail: `“${item.title}” is not written as a user story`, target: `item-${item.id}` });
-  const big = tooBigReason(item, velocities);
+  const big = tooBigReason(item, velocities, deviation);
   if (big) findings.push({ rule: 'SG-200', detail: `“${item.title}” can't be Done within one Sprint: ${big}`, target: `item-${item.id}` });
   return findings;
 }

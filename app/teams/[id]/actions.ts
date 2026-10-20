@@ -5,12 +5,13 @@ import { redirect } from 'next/navigation';
 import { deselectItem, setMarkedBig, setPoints, setSprintGoal } from '@/src/db/planning';
 import { getSprint, recordDaily, setDodChecked, setOrder } from '@/src/db/sprint';
 import {
-  addDodItem, addMember, getTeam, listExceptions, logException, removeDodItem, removeMember,
-  setMemberRole, setProductGoal, setStage, ROLES, type Team,
+  addDodItem, addMember, getTeam, logException, removeDodItem, removeMember,
+  setMemberRole, setProductGoal, setStage, setVelocityDeviation, ROLES, type Team,
 } from '@/src/db/teams';
-import { POINTS, RULES, kindFor, pendingFindings, reasonIsValid, type Role, type RuleId } from '@/src/rules';
+import { POINTS, RULES, activeExceptions, kindFor, pendingFindings, reasonIsValid, type Role, type RuleId } from '@/src/rules';
 import { CURRENT_USER, STAGES } from '@/src/workflow';
-import { findingsFor, intentFields, loadTeamData, parseIntent, runIntent, type Intent } from './intents';
+import { DEVIATIONS } from './flags';
+import { findingsFor, intentFields, loadLog, loadTeamData, parseIntent, runIntent, type Intent } from './intents';
 
 const text = (form: FormData, key: string) => String(form.get(key) ?? '').trim();
 const teamPath = (id: string) => `/teams/${encodeURIComponent(id)}`;
@@ -25,7 +26,7 @@ async function loadTeam(id: string): Promise<Team> {
 
 async function pendingFor(team: Team, intent: Intent) {
   const findings = findingsFor(team, await loadTeamData(team), intent);
-  return pendingFindings(findings, await listExceptions(team.id, team.sprintNumber), team.sprintNumber);
+  return pendingFindings(findings, activeExceptions(await loadLog(team)), team.sprintNumber);
 }
 
 /** Carries out the intent when nothing is left to decide, otherwise asks about the next finding. */
@@ -174,5 +175,11 @@ export async function addDod(teamId: string, form: FormData) {
 
 export async function deleteDod(teamId: string, itemId: number) {
   await removeDodItem(teamId, itemId);
+  revalidatePath(teamPath(teamId));
+}
+
+export async function saveVelocityDeviation(teamId: string, form: FormData) {
+  const percent = Number(text(form, 'deviation'));
+  if ((DEVIATIONS as readonly number[]).includes(percent)) await setVelocityDeviation(teamId, percent);
   revalidatePath(teamPath(teamId));
 }

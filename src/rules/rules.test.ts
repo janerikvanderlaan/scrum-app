@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  type Rule,
+  type Rule, activeExceptions, resolveExceptions, velocityLimit,
   RULES, averageVelocity, countKinds, followsScrum, isStory, kindFor, kindLabel, needsDecision, pendingFindings, reasonIsValid,
   planningChecks, selectionChecks, teamChecks, tooBigReason, confirmOrderChecks, dailyChecks, doneChecks, nextItem, reviewChecks, startChecks,
   type BacklogItem, type SprintItem, type ExceptionRecord, type Member,
@@ -68,8 +68,12 @@ describe('team checks', () => {
 
 describe('planning checks', () => {
   it('needs a Sprint Goal', () => expect(planningChecks('', [item()], [10]).map(f => f.rule)).toEqual(['SG-150']));
-  it('needs at least one sized story', () => expect(planningChecks('Goal', [], [10])[0].detail).toMatch(/No sized/));
-  it('blocks unsized stories', () => expect(planningChecks('Goal', [item(), item({ id: 'a2', points: null })], [10])[0].detail).toBe('1 selected story is not sized'));
+  // Test round 3, issues 2, 4 and 5: an empty selection and unsized stories get their own messages.
+  it('needs at least one selected story', () => expect(planningChecks('Goal', [], [10])[0].detail).toBe('No user stories are selected for this Sprint'));
+  it('blocks unsized stories', () =>
+    expect(planningChecks('Goal', [item({ points: null })], [10])[0].detail).toBe('There are User Stories without sizing added to the Sprint'));
+  it('blocks unsized stories next to sized ones', () =>
+    expect(planningChecks('Goal', [item(), item({ id: 'a2', points: null })], [10])[0].detail).toBe('There are User Stories without sizing added to the Sprint'));
   it('blocks a forecast above the average velocity', () => {
     expect(planningChecks('Goal', [item({ points: 8 }), item({ id: 'a2', points: 8 })], [14, 17, 16])[0].detail).toMatch(/16 points .* 15.7/);
   });
@@ -146,4 +150,30 @@ describe('Sprint checks', () => {
     const rule: Rule = RULES['SG-238'];
     expect(rule.explain).toMatch(/reconsider the story’s priority, size and value/);
   });
+});
+
+// Test round 3, issue 3: the team may allow a forecast above the average velocity.
+describe('velocity deviation', () => {
+  it('raises the limit by the percentage', () => expect(velocityLimit([10], 20)).toBe(12));
+  it('keeps the average when the setting is 0%', () => expect(velocityLimit([14, 17, 16])).toBe(15.7));
+  it('lets a forecast within the deviation through', () => expect(planningChecks('Goal', [item({ points: 12 })], [10], 20)).toEqual([]));
+  it('names the limit when the forecast goes over it', () =>
+    expect(planningChecks('Goal', [item({ points: 13 })], [10], 20)[0].detail).toBe('The forecast of 13 points is more than 12 points (average velocity 10 plus 20%)'));
+  it('uses the deviation for too-big items as well', () => {
+    expect(tooBigReason(item({ points: 12 }), [10], 20)).toBeNull();
+    expect(tooBigReason(item({ points: 13 }), [10], 20)).toBe('its 13 points are more than 12 points (average velocity 10 plus 20%)');
+  });
+});
+
+// Test round 3, issue 1: an override about the team setup is resolved once the team fixes it.
+describe('resolved exceptions', () => {
+  const po: ExceptionRecord = { rule: 'SG-095', kind: 'override', reason: 'Two POs during handover', who: 'You', target: 'members', detail: 'Atlas has 2 Product Owners', sprint: 1, stage: 'Team and goals', day: null, time: '10:00' };
+  const late: ExceptionRecord = { ...po, rule: 'TEAM-01', target: 'item-1', detail: 'not the next item' };
+  it('resolves a team setup override once its check passes', () => {
+    const log = resolveExceptions([po, late], []);
+    expect(log.map(o => o.resolved)).toEqual([true, false]);
+    expect(followsScrum(activeExceptions(log))).toBe(true);
+  });
+  it('keeps it open while the problem is still there', () =>
+    expect(resolveExceptions([po], [{ rule: 'SG-095', target: 'members', detail: 'Atlas has 3 Product Owners' }])[0].resolved).toBe(false));
 });

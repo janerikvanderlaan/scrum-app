@@ -15,3 +15,6 @@ export function flag(base: string, target: string, pending: Finding | undefined,
   const kind = log.some(o => o.target === target && o.kind === 'override') ? 'flag-override' : 'flag-warning';
   return { className: `${base} ${kind}`, 'data-exception': `Exception: ${rules.join(', ')}` };
 }
+
+/** The choices for the team's allowed deviation above the average velocity, in percent. */
+export const DEVIATIONS = [0, 5, 10, 15, 20, 25, 30] as const;

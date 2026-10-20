@@ -1,12 +1,12 @@
 import { AutoSubmitSelect } from '@/app/components/AutoSubmitSelect';
 import type { Planning } from '@/src/db/planning';
 import type { Team } from '@/src/db/teams';
-import { POINTS, averageVelocity, isStory, tooBigReason, type ExceptionRecord, type Finding } from '@/src/rules';
+import { POINTS, averageVelocity, isStory, tooBigReason, velocityLimit, type ExceptionRecord, type Finding } from '@/src/rules';
 import { addStory, closePlanning, deselect, goToStage, resize, saveSprintGoal, select, toggleTooBig } from './actions';
 import { flag, plural } from './flags';
 
 export function PlanningStage({ team, planning, pending, log }: { team: Team; planning: Planning; pending?: Finding; log: readonly ExceptionRecord[] }) {
-  const v = averageVelocity(planning.velocities);
+  const v = averageVelocity(planning.velocities), limit = velocityLimit(planning.velocities, team.velocityDeviation);
   const isSelected = (id: string) => planning.selected.includes(Number(id));
   const forecast = planning.backlog.filter(b => isSelected(b.id)).reduce((x, b) => x + (b.points ?? 0), 0);
   return (
@@ -29,7 +29,7 @@ export function PlanningStage({ team, planning, pending, log }: { team: Team; pl
             <thead><tr><th /><th>Order</th><th>ID</th><th>Product Backlog item</th><th>Points</th><th /></tr></thead>
             <tbody>
               {planning.backlog.map((b, i) => {
-                const big = tooBigReason(b, planning.velocities), chosen = isSelected(b.id);
+                const big = tooBigReason(b, planning.velocities, team.velocityDeviation), chosen = isSelected(b.id);
                 return (
                   <tr key={b.id} {...flag(chosen ? 'chosen' : '', `item-${b.id}`, pending, log)} data-item={b.id}>
                     <td>
@@ -63,8 +63,8 @@ export function PlanningStage({ team, planning, pending, log }: { team: Team; pl
           </table>
         </div>
         <div {...flag('row', 'forecast', pending, log)}>
-          <span className={`tag ${v === null ? 'tag-warn' : forecast > v ? 'tag-block' : 'tag-ok'}`} id="forecast">Forecast {forecast} points</span>
-          <span className="note">{v === null ? 'No velocity yet: it is measured from the first Sprint.' : `Average velocity ${v} points over the last ${plural(planning.velocities.length, 'Sprint')}`}</span>
+          <span className={`tag ${v === null ? 'tag-warn' : forecast > limit! ? 'tag-block' : 'tag-ok'}`} id="forecast">Forecast {forecast} points</span>
+          <span className="note">{v === null ? 'No velocity yet: it is measured from the first Sprint.' : `Average velocity ${v} points over the last ${plural(planning.velocities.length, 'Sprint')}${team.velocityDeviation ? `, limit ${limit} points with ${team.velocityDeviation}% deviation` : ''}`}</span>
         </div>
         <form action={addStory.bind(null, team.id)} {...flag('row', 'story-new', pending, log)}>
           <input name="title" placeholder="As a … I want to … so that …" aria-label="New user story" required />
