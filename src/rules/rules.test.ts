@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
   RULES, averageVelocity, countKinds, followsScrum, isStory, kindFor, kindLabel, needsDecision, pendingFindings, reasonIsValid,
-  planningChecks, selectionChecks, teamChecks, tooBigReason,
-  type BacklogItem, type ExceptionRecord, type Member,
+  planningChecks, selectionChecks, teamChecks, tooBigReason, confirmOrderChecks, dailyChecks, doneChecks, nextItem, reviewChecks, startChecks,
+  type BacklogItem, type SprintItem, type ExceptionRecord, type Member,
 } from '.';
 
 const item = (over: Partial<BacklogItem> = {}): BacklogItem => ({
@@ -107,4 +107,37 @@ describe('exception log', () => {
     expect(reasonIsValid('override', 'Coach starts next month')).toBe(true);
     expect(reasonIsValid('warning', '')).toBe(true);
   });
+});
+
+describe('Sprint checks', () => {
+  const items: SprintItem[] = [
+    { id: 'a', title: 'Top story', status: 'done' },
+    { id: 'b', title: 'Second story', status: 'todo' },
+    { id: 'c', title: 'Third story', status: 'todo' },
+  ];
+  it('lets only a Developer confirm the order (SG-216)', () => {
+    expect(confirmOrderChecks({ name: 'Lena', role: 'Developer' })).toEqual([]);
+    expect(confirmOrderChecks({ name: 'Mara', role: 'Product Owner' })[0]).toMatchObject({ rule: 'SG-216', detail: 'Mara is the Product Owner. A Developer confirms the Sprint Backlog order' });
+  });
+  it('starts items from the top (TEAM-01)', () => {
+    expect(nextItem(items)?.id).toBe('b');
+    expect(startChecks(items, 'b')).toEqual([]);
+    expect(startChecks(items, 'c')[0]).toMatchObject({ rule: 'TEAM-01', detail: '“Third story” is not the next item; “Second story” is on top', target: 'item-c' });
+  });
+  it('needs every Definition of Done line before Done (SG-233)', () => {
+    expect(doneChecks(items[1], 5, 5)).toEqual([]);
+    expect(doneChecks(items[1], 5, 4)[0].detail).toBe('1 Definition of Done item is not met for “Second story”');
+    expect(doneChecks(items[1], 5, 2)[0].detail).toMatch(/^3 Definition of Done items are not met/);
+  });
+  it('asks about a working day without a Daily Scrum (SG-164)', () => {
+    expect(dailyChecks(3, true)).toEqual([]);
+    expect(dailyChecks(3, false)[0]).toMatchObject({ rule: 'SG-164', detail: 'Day 3 has no Daily Scrum yet', target: 'day-3' });
+  });
+  it('checks days left, today’s Daily Scrum and open items before the Review, in that order', () => {
+    expect(reviewChecks(4, 10, false, items).map(f => f.rule)).toEqual(['SG-125', 'SG-164', 'SG-238']);
+    expect(reviewChecks(9, 10, true, items)[0].detail).toBe('The Sprint has 1 working day left');
+    expect(reviewChecks(10, 10, true, items)[0].detail).toBe('2 Sprint Backlog items are not Done. Start the Sprint Review anyway?');
+    expect(reviewChecks(10, 10, true, items.map(b => ({ ...b, status: 'done' as const })))).toEqual([]);
+  });
+  it('treats an open-items warning as a confirmation, logged as a warning', () => expect(kindFor('SG-238')).toBe('warning'));
 });

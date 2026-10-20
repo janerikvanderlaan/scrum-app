@@ -6,8 +6,9 @@ import { STAGES } from '@/src/workflow';
 import { goToStage } from './actions';
 import { DecisionDialog } from './DecisionDialog';
 import { ExceptionLog } from './ExceptionLog';
-import { findingsFor, intentFields, loadPlanning, parseIntent } from './intents';
+import { findingsFor, intentFields, loadTeamData, parseIntent } from './intents';
 import { PlanningStage } from './PlanningStage';
+import { SprintStage } from './SprintStage';
 import { TeamStage } from './TeamStage';
 
 export const dynamic = 'force-dynamic';
@@ -19,9 +20,9 @@ export default async function TeamPage({ params, searchParams }: {
   const [{ id }, query] = await Promise.all([params, searchParams]);
   const team = await getTeam(decodeURIComponent(id));
   if (!team) notFound();
-  const [log, planning] = await Promise.all([listExceptions(team.id, team.sprintNumber), loadPlanning(team)]);
+  const [log, data] = await Promise.all([listExceptions(team.id, team.sprintNumber), loadTeamData(team)]);
   const intent = parseIntent(key => query[key]);
-  const pending = intent ? pendingFindings(findingsFor(team, planning, intent), log, team.sprintNumber)[0] : undefined;
+  const pending = intent ? pendingFindings(findingsFor(team, data, intent), log, team.sprintNumber)[0] : undefined;
 
   return (
     <div className="shell">
@@ -40,13 +41,14 @@ export default async function TeamPage({ params, searchParams }: {
       <div className="work">
         <main>
           {team.stage === 0 && <TeamStage team={team} pending={pending} log={log} />}
-          {team.stage === 1 && <PlanningStage team={team} planning={planning} pending={pending} log={log} />}
-          {team.stage >= 2 && (
+          {team.stage === 1 && <PlanningStage team={team} planning={data.planning} pending={pending} log={log} />}
+          {team.stage === 2 && <SprintStage team={team} sprint={data.sprint} pending={pending} log={log} checking={query.check} />}
+          {team.stage >= 3 && (
             <>
-              <div><span className="eyebrow">Stage {team.stage + 1} of 6</span><h1>Sprint {team.sprintNumber}</h1></div>
+              <div><span className="eyebrow">Stage {team.stage + 1} of 6</span><h1>Sprint {team.sprintNumber} Review</h1></div>
               <section className="block">
-                <p className="note">The Sprint itself moves into the app next. Until then it lives in the <a href="/prototype/index.html">prototype</a>.</p>
-                <form action={goToStage.bind(null, team.id, 1)}><button className="btn ghost">Back to Sprint Planning</button></form>
+                <p className="note">The Sprint Review moves into the app next. Until then it lives in the <a href="/prototype/index.html">prototype</a>.</p>
+                <form action={goToStage.bind(null, team.id, 2)}><button className="btn ghost">Back to the Sprint</button></form>
               </section>
             </>
           )}

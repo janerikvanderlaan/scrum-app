@@ -3,13 +3,14 @@
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { deselectItem, setMarkedBig, setPoints, setSprintGoal } from '@/src/db/planning';
+import { getSprint, recordDaily, setDodChecked, setOrder } from '@/src/db/sprint';
 import {
   addDodItem, addMember, getTeam, listExceptions, logException, removeDodItem, removeMember,
   setMemberRole, setProductGoal, setStage, ROLES, type Team,
 } from '@/src/db/teams';
 import { POINTS, RULES, kindFor, pendingFindings, reasonIsValid, type Role, type RuleId } from '@/src/rules';
 import { CURRENT_USER, STAGES } from '@/src/workflow';
-import { findingsFor, intentFields, loadPlanning, parseIntent, runIntent, type Intent } from './intents';
+import { findingsFor, intentFields, loadTeamData, parseIntent, runIntent, type Intent } from './intents';
 
 const text = (form: FormData, key: string) => String(form.get(key) ?? '').trim();
 const teamPath = (id: string) => `/teams/${encodeURIComponent(id)}`;
@@ -23,14 +24,14 @@ async function loadTeam(id: string): Promise<Team> {
 }
 
 async function pendingFor(team: Team, intent: Intent) {
-  const findings = findingsFor(team, await loadPlanning(team), intent);
+  const findings = findingsFor(team, await loadTeamData(team), intent);
   return pendingFindings(findings, await listExceptions(team.id, team.sprintNumber), team.sprintNumber);
 }
 
 /** Carries out the intent when nothing is left to decide, otherwise asks about the next finding. */
 async function proceed(team: Team, intent: Intent): Promise<never> {
   if ((await pendingFor(team, intent)).length) redirect(decidePath(team.id, intent));
-  await runIntent(team, intent);
+  await runIntent(team, await loadTeamData(team), intent);
   revalidatePath(teamPath(team.id));
   redirect(teamPath(team.id));
 }
@@ -45,7 +46,8 @@ export async function decide(teamId: string, form: FormData) {
   if (!finding || !(rule in RULES)) redirect(decidePath(team.id, intent));
   const kind = kindFor(rule);
   if (!reasonIsValid(kind, reason)) redirect(decidePath(team.id, intent, { error: 'reason' }));
-  await logException(team.id, { rule, kind, reason, who: CURRENT_USER, target, detail, sprint: team.sprintNumber, stage: STAGES[team.stage], day: null });
+  const day = team.stage === 2 ? (await getSprint(team.id, team.sprintNumber)).day : null;
+  await logException(team.id, { rule, kind, reason, who: CURRENT_USER, target, detail, sprint: team.sprintNumber, stage: STAGES[team.stage], day });
   await proceed(team, intent);
 }
 
@@ -65,6 +67,48 @@ export async function select(teamId: string, itemId: string) {
 
 export async function closePlanning(teamId: string) {
   await proceed(await loadTeam(teamId), { kind: 'close-planning' });
+}
+
+export async function confirmSprintOrder(teamId: string, form: FormData) {
+  const member = text(form, 'member');
+  if (member) await proceed(await loadTeam(teamId), { kind: 'confirm-order', member });
+}
+
+export async function startItem(teamId: string, itemId: string) {
+  await proceed(await loadTeam(teamId), { kind: 'start-item', item: itemId });
+}
+
+/** Saves the ticked Definition of Done lines, then marks the item Done through the checks. */
+export async function markDone(teamId: string, itemId: string, form: FormData) {
+  const team = await loadTeam(teamId);
+  await setDodChecked(team.id, team.sprintNumber, Number(itemId), form.getAll('dod').map(Number));
+  await proceed(team, { kind: 'done-item', item: itemId });
+}
+
+export async function goToNextDay(teamId: string) {
+  await proceed(await loadTeam(teamId), { kind: 'next-day' });
+}
+
+export async function startReview(teamId: string) {
+  await proceed(await loadTeam(teamId), { kind: 'start-review' });
+}
+
+export async function holdDailyScrum(teamId: string) {
+  const team = await loadTeam(teamId);
+  if (team.stage === 2) await recordDaily(team.id, team.sprintNumber, (await getSprint(team.id, team.sprintNumber)).day, true);
+  revalidatePath(teamPath(teamId));
+}
+
+/** Moves a Sprint Backlog item one place up or down, until a Developer confirms the order. */
+export async function moveItem(teamId: string, itemId: string, by: -1 | 1) {
+  const team = await loadTeam(teamId);
+  const sprint = await getSprint(team.id, team.sprintNumber);
+  const ids = sprint.items.map(b => Number(b.id)), i = ids.indexOf(Number(itemId)), j = i + by;
+  if (team.stage === 2 && !sprint.confirmedBy && i >= 0 && j >= 0 && j < ids.length) {
+    [ids[i], ids[j]] = [ids[j], ids[i]];
+    await setOrder(team.id, team.sprintNumber, ids);
+  }
+  revalidatePath(teamPath(teamId));
 }
 
 export async function deselect(teamId: string, itemId: string) {
