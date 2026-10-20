@@ -53,4 +53,15 @@ describe('sprint', () => {
     await nextDay(id);
     expect((await getSprint(id, 1)).day).toBe(2);
   });
+  // Test round 2, issue 2: stories have a stable ID per team that doesn't change with the order.
+  it('numbers backlog items per team and keeps the number when the order changes', async () => {
+    const { id, ids: [a, b, c] } = await teamWithSprint('DB test sprint keys');
+    const other = await createTeam('DB test sprint keys other');
+    await addBacklogItem(other, 'Other team item', 1);
+    expect((await getPlanning(other, 1)).backlog.map(x => x.key)).toEqual(['US-1']);
+    await setOrder(id, 1, [c, a, b]);
+    expect((await getSprint(id, 1)).items.map(x => [x.title, x.key])).toEqual([['C', 'US-3'], ['A', 'US-1'], ['B', 'US-2']]);
+    await addBacklogItem(id, 'D', 2);
+    expect((await getPlanning(id, 1)).backlog.map(x => x.key)).toEqual(['US-1', 'US-2', 'US-3', 'US-4']);
+  });
 });

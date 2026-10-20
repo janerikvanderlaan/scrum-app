@@ -1,7 +1,10 @@
 import type { ItemStatus, SprintItem } from '@/src/rules';
 import { pool } from './client';
+import { itemKey } from './planning';
 
 export interface SprintBacklogItem extends SprintItem {
+  /** Stable identifier within the team, such as US-3. */
+  key: string;
   points: number | null;
   /** Ids of the Definition of Done lines ticked for this item. */
   dodChecked: number[];
@@ -22,7 +25,7 @@ export async function getSprint(teamId: string, sprint: number): Promise<Sprint>
   const [team, items, daily] = await Promise.all([
     db.query('select sprint_day, sprint_length, order_confirmed_by from teams where id = $1', [teamId]),
     db.query(
-      `select b.id, b.title, b.points, s.status, s.dod_checked from sprint_items s join backlog_items b on b.id = s.item_id
+      `select b.id, b.number, b.title, b.points, s.status, s.dod_checked from sprint_items s join backlog_items b on b.id = s.item_id
         where s.team_id = $1 and s.sprint = $2 order by s.position nulls last, b.position, b.id`,
       [teamId, sprint],
     ),
@@ -33,7 +36,7 @@ export async function getSprint(teamId: string, sprint: number): Promise<Sprint>
     day: t.sprint_day,
     length: t.sprint_length,
     confirmedBy: t.order_confirmed_by,
-    items: items.rows.map(r => ({ id: String(r.id), title: r.title, points: r.points, status: r.status, dodChecked: r.dod_checked })),
+    items: items.rows.map(r => ({ id: String(r.id), key: itemKey(r.number), title: r.title, points: r.points, status: r.status, dodChecked: r.dod_checked })),
     daily: Object.fromEntries(daily.rows.map(r => [r.day, r.held])),
   };
 }

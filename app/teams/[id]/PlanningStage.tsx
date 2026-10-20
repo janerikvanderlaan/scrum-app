@@ -26,7 +26,7 @@ export function PlanningStage({ team, planning, pending, log }: { team: Team; pl
         <p className="note">Developers select items, ordered by the Product Owner.</p>
         <div className="tbl">
           <table>
-            <thead><tr><th /><th>Order</th><th>Product Backlog item</th><th>Points</th><th /></tr></thead>
+            <thead><tr><th /><th>Order</th><th>ID</th><th>Product Backlog item</th><th>Points</th><th /></tr></thead>
             <tbody>
               {planning.backlog.map((b, i) => {
                 const big = tooBigReason(b, planning.velocities), chosen = isSelected(b.id);
@@ -38,6 +38,7 @@ export function PlanningStage({ team, planning, pending, log }: { team: Team; pl
                       </form>
                     </td>
                     <td className="num">{i + 1}</td>
+                    <td className="mono item-key nowrap">{b.key}</td>
                     <td>{b.improvement && <span className="tag tag-ok">Improvement</span>} {b.title}</td>
                     <td>
                       <form action={resize.bind(null, team.id, b.id)}>

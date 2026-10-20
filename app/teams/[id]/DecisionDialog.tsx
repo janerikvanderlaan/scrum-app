@@ -1,16 +1,18 @@
 import Link from 'next/link';
-import { MIN_REASON_LENGTH, RULES, kindFor, type Finding } from '@/src/rules';
+import { MIN_REASON_LENGTH, RULES, kindFor, type Finding, type Rule } from '@/src/rules';
 import { decide } from './actions';
 import { TIER_LABEL } from './flags';
 
 export function DecisionDialog({ teamId, finding, fields, error }: { teamId: string; finding: Finding; fields: Record<string, string>; error?: string }) {
   const override = kindFor(finding.rule) === 'override';
+  const rule: Rule = RULES[finding.rule];
   return (
     <div className="modal" role="dialog" aria-modal="true" aria-labelledby="dlg-title">
       <form action={decide.bind(null, teamId)} className="dialog">
-        <span className="eyebrow">{finding.rule} · {TIER_LABEL[RULES[finding.rule].tier]}</span>
+        <span className="eyebrow">{finding.rule} · {TIER_LABEL[rule.tier]}</span>
         <h2 id="dlg-title">{finding.detail}</h2>
-        <q>{RULES[finding.rule].text}</q>
+        <q>{rule.text}</q>
+        {rule.explain && <p className="rule-explain" id="dlg-explain">{rule.explain}</p>}
         {Object.entries({ ...fields, rule: finding.rule, target: finding.target, detail: finding.detail }).map(([k, v]) => <input key={k} type="hidden" name={k} value={v} />)}
         {override && (
           <>

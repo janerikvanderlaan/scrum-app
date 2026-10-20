@@ -12,6 +12,8 @@ export type Tier = 'rule' | 'guidance' | 'confirm' | 'team';
 export interface Rule {
   text: string;
   tier: Tier;
+  /** What the rule means for the team in practice, in the app's own words (not Guide text). */
+  explain?: string;
 }
 
 export const RULES = {
@@ -28,7 +30,10 @@ export const RULES = {
   'SG-121': { text: 'Failure to operate any events as prescribed results in lost opportunities to inspect and adapt.', tier: 'rule' },
   'SG-187': { text: 'The Sprint Retrospective concludes the Sprint.', tier: 'rule' },
   'SG-185': { text: 'The most impactful improvements are addressed as soon as possible.', tier: 'rule' },
-  'SG-238': { text: 'Instead, it returns to the Product Backlog for future consideration.', tier: 'confirm' },
+  'SG-238': {
+    text: 'Instead, it returns to the Product Backlog for future consideration.', tier: 'confirm',
+    explain: 'The Product Owner and the team reconsider the story’s priority, size and value. They may decide not to finish the remaining work, to take it into a Sprint again with a new size (if work has already been done), or to deprioritize it for a later Sprint.',
+  },
   'SG-216': { text: 'The Sprint Backlog is a plan by and for the Developers.', tier: 'rule' },
   'TEAM-01': { text: 'Developers start Sprint Backlog items from top to bottom, in the order a Developer confirmed at the start of the Sprint.', tier: 'team' },
   'TEAM-02': { text: 'Product Backlog items and improvements are written as user stories: “As a … I want to … so that …”.', tier: 'team' },
