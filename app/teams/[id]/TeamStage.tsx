@@ -1,8 +1,8 @@
 import { AutoSubmitSelect } from '@/app/components/AutoSubmitSelect';
 import { ROLES, type Team } from '@/src/db/teams';
 import type { ExceptionRecord, Finding } from '@/src/rules';
-import { addDod, addTeamMember, changeRole, deleteDod, deleteMember, saveProductGoal, startPlanning } from './actions';
-import { flag } from './flags';
+import { addDod, addTeamMember, changeRole, deleteDod, deleteMember, saveProductGoal, saveVelocityDeviation, startPlanning } from './actions';
+import { DEVIATIONS, flag } from './flags';
 
 export function TeamStage({ team, pending, log }: { team: Team; pending?: Finding; log: readonly ExceptionRecord[] }) {
   return (
@@ -58,6 +58,17 @@ export function TeamStage({ team, pending, log }: { team: Team; pending?: Findin
           <input name="text" placeholder="Add a quality measure, for example: Security scan passes" aria-label="New Definition of Done item" required />
           <button className="btn ghost">Add</button>
         </form>
+      </section>
+
+      <section className="block">
+        <h2>Team settings</h2>
+        <form action={saveVelocityDeviation.bind(null, team.id)} className="row">
+          <label htmlFor="deviation">Maximum deviation from average velocity</label>
+          <AutoSubmitSelect id="deviation" key={team.velocityDeviation} name="deviation" defaultValue={team.velocityDeviation}>
+            {DEVIATIONS.map(d => <option key={d} value={d}>{d}%</option>)}
+          </AutoSubmitSelect>
+        </form>
+        <p className="note">Sprint Planning stops a forecast, and an item counts as too big for one Sprint, above the average velocity plus this percentage.</p>
       </section>
 
       <form action={startPlanning.bind(null, team.id)}><button className="btn" id="next">Start Sprint {team.sprintNumber} Planning</button></form>

@@ -1,8 +1,9 @@
 import { addBacklogItem, getPlanning, selectItem, type Planning } from '@/src/db/planning';
 import { confirmOrder, getSprint, nextDay, recordDaily, setOrder, setStatus, type Sprint } from '@/src/db/sprint';
-import { setStage, type Team } from '@/src/db/teams';
+import { listExceptions, setStage, type Team } from '@/src/db/teams';
 import {
-  confirmOrderChecks, dailyChecks, doneChecks, planningChecks, reviewChecks, selectionChecks, startChecks, teamChecks, type Finding,
+  confirmOrderChecks, dailyChecks, doneChecks, planningChecks, resolveExceptions, reviewChecks, selectionChecks, startChecks, teamChecks,
+  type Finding, type LoggedException,
 } from '@/src/rules';
 
 /**
@@ -104,15 +105,15 @@ export function findingsFor(team: Team, data: TeamData, intent: Intent): Finding
       return teamChecks(team);
     case 'add':
       // A new item has no id yet, so its findings point at the add form.
-      return selectionChecks({ id: 'new', title: intent.title, points: intent.points, markedBig: false }, planning.velocities)
+      return selectionChecks({ id: 'new', title: intent.title, points: intent.points, markedBig: false }, planning.velocities, team.velocityDeviation)
         .filter(f => f.rule === 'TEAM-02')
         .map(f => ({ ...f, target: 'story-new' }));
     case 'select': {
       const item = planning.backlog.find(b => b.id === intent.item);
-      return item && !planning.selected.includes(Number(item.id)) ? selectionChecks(item, planning.velocities) : [];
+      return item && !planning.selected.includes(Number(item.id)) ? selectionChecks(item, planning.velocities, team.velocityDeviation) : [];
     }
     case 'close-planning':
-      return planningChecks(team.sprintGoal, planning.backlog.filter(b => planning.selected.includes(Number(b.id))), planning.velocities);
+      return planningChecks(team.sprintGoal, planning.backlog.filter(b => planning.selected.includes(Number(b.id))), planning.velocities, team.velocityDeviation);
     case 'confirm-order':
       return confirmOrderChecks(memberFor(team, intent.member)!);
     case 'start-item':
@@ -161,4 +162,9 @@ export async function runIntent(team: Team, data: TeamData, intent: Intent): Pro
 export async function loadTeamData(team: Team): Promise<TeamData> {
   const [planning, sprint] = await Promise.all([getPlanning(team.id, team.sprintNumber), getSprint(team.id, team.sprintNumber)]);
   return { planning, sprint };
+}
+
+/** This Sprint's exception log, with team setup exceptions marked resolved once the team fixed them. */
+export async function loadLog(team: Team): Promise<LoggedException[]> {
+  return resolveExceptions(await listExceptions(team.id, team.sprintNumber), teamChecks(team));
 }
