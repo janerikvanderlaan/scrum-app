@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  type Rule,
   RULES, averageVelocity, countKinds, followsScrum, isStory, kindFor, kindLabel, needsDecision, pendingFindings, reasonIsValid,
   planningChecks, selectionChecks, teamChecks, tooBigReason, confirmOrderChecks, dailyChecks, doneChecks, nextItem, reviewChecks, startChecks,
   type BacklogItem, type SprintItem, type ExceptionRecord, type Member,
@@ -140,4 +141,9 @@ describe('Sprint checks', () => {
     expect(reviewChecks(10, 10, true, items.map(b => ({ ...b, status: 'done' as const })))).toEqual([]);
   });
   it('treats an open-items warning as a confirmation, logged as a warning', () => expect(kindFor('SG-238')).toBe('warning'));
+  // Test round 2, issue 5: the SG-238 question also says what returning to the Product Backlog means.
+  it('explains what happens to items that are not Done', () => {
+    const rule: Rule = RULES['SG-238'];
+    expect(rule.explain).toMatch(/reconsider the story’s priority, size and value/);
+  });
 });

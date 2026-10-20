@@ -72,13 +72,13 @@ test('each working day needs a Daily Scrum', async ({ page }) => {
   await page.fill('#ov-reason', 'Half the team was at a training');
   await page.click('#ov-go');
   await expect(page.locator('main .eyebrow')).toHaveText('Stage 3 of 6 · working day 2 of 10');
-  await expect(page.locator('.day[title="Day 1"]')).toHaveClass(/skipped/);
+  await expect(page.locator('.days .day[title^="Day 1:"]')).toHaveClass(/skipped/);
   await expect(page.locator('header .tag')).toHaveText('Not following the Scrum Guide');
 
   await page.click('#daily');
   await expect(page.locator('.tag', { hasText: 'Daily Scrum held today' })).toBeVisible();
   await page.click('#nextday');
-  await expect(page.locator('.day[title="Day 2"]')).toHaveClass(/held/);
+  await expect(page.locator('.days .day[title^="Day 2:"]')).toHaveClass(/held/);
   await expect(page.locator('main .eyebrow')).toHaveText('Stage 3 of 6 · working day 3 of 10');
 });
 
@@ -91,7 +91,56 @@ test('the Sprint Review waits for the end of the Sprint, today’s Daily Scrum a
   await page.fill('#ov-reason', 'We go straight to the Review');
   await page.click('#ov-go');
   await expect(title(page)).toHaveText('3 Sprint Backlog items are not Done. Start the Sprint Review anyway?');
+  // Test round 2, issue 5.
+  await expect(page.locator('#dlg-explain')).toContainText('They may decide not to finish the remaining work');
   await page.click('#ov-go');
   await expect(page.locator('h1')).toHaveText('Sprint 1 Review');
   await expect(page.locator('.log')).toContainText('2 Guide rule overrides');
+});
+
+// Test round 2 (Jan Erik, 2026-10-20).
+test('the Sprint Backlog shows as a board with three styled columns', async ({ page }) => {
+  await expect(page.locator('.board')).toHaveCSS('display', 'grid');
+  await expect(page.locator('.board .col > b')).toHaveText(['To do', 'In progress', 'Done']);
+  await expect(page.locator('[data-col="todo"] .card')).toHaveCount(3);
+});
+
+test('stories keep their ID when the order changes', async ({ page }) => {
+  await expect(page.locator('[data-order-item] .item-key')).toHaveText(['US-1', 'US-2', 'US-4']);
+  await page.getByRole('button', { name: 'Move item 1 down' }).click();
+  await expect(page.locator('[data-order-item] .item-key')).toHaveText(['US-2', 'US-1', 'US-4']);
+  await expect(card(page, 'todo', RESET)).toContainText('US-1 · #2');
+});
+
+test('each day shows whether the Daily Scrum was held', async ({ page }) => {
+  const day = (n: number) => page.locator(`.days .day[title^="Day ${n}:"]`);
+  await expect(page.locator('.legend')).toContainText('Daily Scrum held');
+  await expect(day(1)).toHaveAttribute('data-state', 'open');
+  await expect(day(2)).toHaveAttribute('data-state', 'upcoming');
+  await page.click('#daily');
+  await expect(day(1)).toHaveAttribute('data-state', 'held');
+  await expect(day(1)).toContainText('✓');
+  await page.click('#nextday');
+  await expect(day(2)).toHaveAttribute('data-state', 'open');
+  await page.click('#nextday');
+  await page.fill('#ov-reason', 'Half the team was at a training');
+  await page.click('#ov-go');
+  await expect(day(2)).toHaveAttribute('data-state', 'skipped');
+  await expect(day(2)).toContainText('✗');
+});
+
+test('all Definition of Done items can be ticked or cleared at once', async ({ page }) => {
+  await confirmBy(page, 'Lena Smit (Developer)');
+  await card(page, 'todo', RESET).getByRole('button', { name: 'Start' }).click();
+  await card(page, 'doing', RESET).getByRole('link', { name: 'Check Done' }).click();
+  const all = page.getByLabel('All Definition of Done items'), boxes = page.locator('input[name="dod"]');
+  await all.check();
+  for (const box of await boxes.all()) await expect(box).toBeChecked();
+  await all.uncheck();
+  for (const box of await boxes.all()) await expect(box).not.toBeChecked();
+  await boxes.first().check();
+  await expect(all).not.toBeChecked();
+  await all.check();
+  await page.click('#mark-done');
+  await expect(card(page, 'done', RESET)).toContainText('Done');
 });

@@ -1,9 +1,14 @@
 import Link from 'next/link';
+import { CheckAll } from '@/app/components/CheckAll';
 import type { Sprint, SprintBacklogItem } from '@/src/db/sprint';
 import type { Team } from '@/src/db/teams';
 import type { ExceptionRecord, Finding, ItemStatus } from '@/src/rules';
 import { confirmSprintOrder, goToNextDay, goToStage, holdDailyScrum, markDone, moveItem, startItem, startReview } from './actions';
 import { flag } from './flags';
+
+type DayState = 'held' | 'skipped' | 'open' | 'upcoming';
+const DAY_LABEL: Record<DayState, string> = { held: 'Daily Scrum held', skipped: 'no Daily Scrum', open: 'Daily Scrum not held yet', upcoming: 'coming up' };
+const DAY_MARK: Record<DayState, string> = { held: '✓', skipped: '✗', open: '•', upcoming: '' };
 
 const COLUMNS: [ItemStatus, string][] = [['todo', 'To do'], ['doing', 'In progress'], ['done', 'Done']];
 
@@ -14,10 +19,12 @@ export function SprintStage({ team, sprint, pending, log, checking }: {
   const heldToday = sprint.daily[sprint.day] === true;
   const dodItem = sprint.items.find(b => b.id === checking && b.status === 'doing');
   const days = Array.from({ length: sprint.length }, (_, i) => i + 1);
+  const dayState = (d: number): DayState =>
+    sprint.daily[d] === true ? 'held' : sprint.daily[d] === false || d < sprint.day ? 'skipped' : d === sprint.day ? 'open' : 'upcoming';
 
   const card = (b: SprintBacklogItem) => (
     <div key={b.id} {...flag('card', `item-${b.id}`, pending, log)} data-item={b.id}>
-      <div className="row"><span className="mono">#{order.get(b.id)}</span><span className="note">{b.points ?? '?'} pts</span></div>
+      <div className="row"><span className="mono"><b className="item-key">{b.key}</b> · #{order.get(b.id)}</span><span className="note">{b.points ?? '?'} pts</span></div>
       <span>{b.title}</span>
       {b.status === 'todo' && (
         <form action={startItem.bind(null, team.id, b.id)}>
@@ -45,6 +52,7 @@ export function SprintStage({ team, sprint, pending, log, checking }: {
               {sprint.items.map((b, i) => (
                 <tr key={b.id} data-order-item={b.id}>
                   <td className="num mono">#{i + 1}</td>
+                  <td className="mono item-key nowrap">{b.key}</td>
                   <td>{b.title}</td>
                   <td className="nowrap">
                     {!sprint.confirmedBy && (
@@ -74,9 +82,20 @@ export function SprintStage({ team, sprint, pending, log, checking }: {
         <h2>Daily Scrum · 15 minutes</h2>
         <div {...flag('days', 'days', pending, log)}>
           {days.map(d => {
-            const state = sprint.daily[d] === true ? 'held' : sprint.daily[d] === false ? 'skipped' : '';
-            return <span key={d} {...flag(`day ${state} ${d === sprint.day ? 'today' : ''}`.trim(), `day-${d}`, pending, log)} title={`Day ${d}`}>{d}</span>;
+            const state = dayState(d);
+            return (
+              <span key={d} {...flag(`day ${state} ${d === sprint.day ? 'today' : ''}`.trim(), `day-${d}`, pending, log)}
+                title={`Day ${d}: ${DAY_LABEL[state]}${d === sprint.day ? ' (today)' : ''}`} aria-label={`Day ${d}: ${DAY_LABEL[state]}`} data-state={state}>
+                <span>{d}</span><span className="day-mark" aria-hidden>{DAY_MARK[state]}</span>
+              </span>
+            );
           })}
+        </div>
+        <div className="legend note">
+          <span><span className="day held mini" aria-hidden>✓</span> Daily Scrum held</span>
+          <span><span className="day skipped mini" aria-hidden>✗</span> Not held</span>
+          <span><span className="day open today mini" aria-hidden>•</span> Today, not held yet</span>
+          <span><span className="day mini" aria-hidden /> Coming up</span>
         </div>
         <div className="row">
           {heldToday
@@ -91,6 +110,7 @@ export function SprintStage({ team, sprint, pending, log, checking }: {
           <h2>Definition of Done for “{dodItem.title}”</h2>
           <form action={markDone.bind(null, team.id, dodItem.id)} className="stack">
             {team.dod.length === 0 && <p className="note">The team has no Definition of Done yet.</p>}
+            {team.dod.length > 1 && <CheckAll name="dod" label="All Definition of Done items" />}
             {team.dod.map(d => (
               <label key={d.id} className="check"><input type="checkbox" name="dod" value={d.id} defaultChecked={dodItem.dodChecked.includes(d.id)} /> {d.text}</label>
             ))}

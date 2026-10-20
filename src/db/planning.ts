@@ -2,6 +2,8 @@ import type { BacklogItem } from '@/src/rules';
 import { pool } from './client';
 
 export interface PlanningItem extends BacklogItem {
+  /** Stable identifier within the team, such as US-3. */
+  key: string;
   improvement: boolean;
 }
 
@@ -12,13 +14,15 @@ export interface Planning {
   velocities: number[];
 }
 
-const toItem = (r: { id: number; title: string; points: number | null; marked_big: boolean; improvement: boolean }): PlanningItem =>
-  ({ id: String(r.id), title: r.title, points: r.points, markedBig: r.marked_big, improvement: r.improvement });
+export const itemKey = (number: number) => `US-${number}`;
+
+const toItem = (r: { id: number; number: number; title: string; points: number | null; marked_big: boolean; improvement: boolean }): PlanningItem =>
+  ({ id: String(r.id), key: itemKey(r.number), title: r.title, points: r.points, markedBig: r.marked_big, improvement: r.improvement });
 
 export async function getPlanning(teamId: string, sprint: number): Promise<Planning> {
   const db = pool();
   const [backlog, selected, velocities] = await Promise.all([
-    db.query('select id, title, points, marked_big, improvement from backlog_items where team_id = $1 order by position, id', [teamId]),
+    db.query('select id, number, title, points, marked_big, improvement from backlog_items where team_id = $1 order by position, id', [teamId]),
     db.query('select item_id from sprint_items where team_id = $1 and sprint = $2', [teamId, sprint]),
     db.query('select points from (select sprint, points from velocities where team_id = $1 order by sprint desc limit 3) v order by sprint', [teamId]),
   ]);
