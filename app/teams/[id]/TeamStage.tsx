@@ -20,7 +20,7 @@ export function TeamStage({ team, pending, log }: { team: Team; pending?: Findin
                 <td>{m.name}</td>
                 <td>
                   <form action={changeRole.bind(null, team.id, m.id)}>
-                    <AutoSubmitSelect name="role" defaultValue={m.role} aria-label={`Accountability of ${m.name}`}>
+                    <AutoSubmitSelect key={m.role} name="role" defaultValue={m.role} aria-label={`Accountability of ${m.name}`}>
                       {ROLES.map(r => <option key={r}>{r}</option>)}
                     </AutoSubmitSelect>
                   </form>

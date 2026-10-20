@@ -44,6 +44,10 @@ export async function setMarkedBig(teamId: string, itemId: number, markedBig: bo
   await pool().query('update backlog_items set marked_big = $3 where team_id = $1 and id = $2', [teamId, itemId, markedBig]);
 }
 
+export async function setPoints(teamId: string, itemId: number, points: number | null): Promise<void> {
+  await pool().query('update backlog_items set points = $3 where team_id = $1 and id = $2', [teamId, itemId, points]);
+}
+
 export async function selectItem(teamId: string, sprint: number, itemId: number): Promise<void> {
   await pool().query(
     'insert into sprint_items (team_id, sprint, item_id) select $1, $2, id from backlog_items where team_id = $1 and id = $3 on conflict do nothing',

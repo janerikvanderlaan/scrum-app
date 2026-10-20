@@ -1,7 +1,8 @@
+import { AutoSubmitSelect } from '@/app/components/AutoSubmitSelect';
 import type { Planning } from '@/src/db/planning';
 import type { Team } from '@/src/db/teams';
 import { POINTS, averageVelocity, isStory, tooBigReason, type ExceptionRecord, type Finding } from '@/src/rules';
-import { addStory, closePlanning, deselect, goToStage, saveSprintGoal, select, toggleTooBig } from './actions';
+import { addStory, closePlanning, deselect, goToStage, resize, saveSprintGoal, select, toggleTooBig } from './actions';
 import { flag, plural } from './flags';
 
 export function PlanningStage({ team, planning, pending, log }: { team: Team; planning: Planning; pending?: Finding; log: readonly ExceptionRecord[] }) {
@@ -38,7 +39,13 @@ export function PlanningStage({ team, planning, pending, log }: { team: Team; pl
                     </td>
                     <td className="num">{i + 1}</td>
                     <td>{b.improvement && <span className="tag tag-ok">Improvement</span>} {b.title}</td>
-                    <td className="mono">{b.points ?? 'Not sized'}</td>
+                    <td>
+                      <form action={resize.bind(null, team.id, b.id)}>
+                        <AutoSubmitSelect key={b.points ?? ''} name="points" defaultValue={b.points ?? ''} aria-label={`Size of item ${i + 1}`}>
+                          <option value="">Not sized</option>{POINTS.map(p => <option key={p}>{p}</option>)}
+                        </AutoSubmitSelect>
+                      </form>
+                    </td>
                     <td>
                       <div className="row tight">
                         {big && <span className="tag tag-warn" title={big}>Too big for one Sprint{b.markedBig ? ' · marked' : ''}</span>}

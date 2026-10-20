@@ -2,12 +2,12 @@
 
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
-import { deselectItem, setMarkedBig, setSprintGoal } from '@/src/db/planning';
+import { deselectItem, setMarkedBig, setPoints, setSprintGoal } from '@/src/db/planning';
 import {
   addDodItem, addMember, getTeam, listExceptions, logException, removeDodItem, removeMember,
   setMemberRole, setProductGoal, setStage, ROLES, type Team,
 } from '@/src/db/teams';
-import { RULES, kindFor, pendingFindings, reasonIsValid, type Role, type RuleId } from '@/src/rules';
+import { POINTS, RULES, kindFor, pendingFindings, reasonIsValid, type Role, type RuleId } from '@/src/rules';
 import { CURRENT_USER, STAGES } from '@/src/workflow';
 import { findingsFor, intentFields, loadPlanning, parseIntent, runIntent, type Intent } from './intents';
 
@@ -78,6 +78,13 @@ export async function toggleTooBig(teamId: string, itemId: string, markedBig: bo
   const team = await loadTeam(teamId);
   await setMarkedBig(team.id, Number(itemId), markedBig);
   if (markedBig) await deselectItem(team.id, team.sprintNumber, Number(itemId));
+  revalidatePath(teamPath(teamId));
+}
+
+/** Sizes or resizes a Product Backlog item; an empty choice makes it unsized again. */
+export async function resize(teamId: string, itemId: string, form: FormData) {
+  const points = Number(text(form, 'points'));
+  await setPoints(teamId, Number(itemId), (POINTS as readonly number[]).includes(points) ? points : null);
   revalidatePath(teamPath(teamId));
 }
 
