@@ -28,7 +28,7 @@ export function SprintStage({ team, sprint, pending, log, checking }: {
       <span>{b.title}</span>
       {b.status === 'todo' && (
         <form action={startItem.bind(null, team.id, b.id)}>
-          <button className="btn ghost small" disabled={!sprint.confirmedBy} title={sprint.confirmedBy ? undefined : 'A Developer confirms the order first'}>Start</button>
+          <button className="btn ghost small">Start</button>
         </form>
       )}
       {b.status === 'doing' && <Link className="btn ghost small" href={`?check=${b.id}`}>Check Done</Link>}

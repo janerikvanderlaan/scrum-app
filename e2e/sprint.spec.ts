@@ -33,7 +33,12 @@ test.afterEach(() => expect(errors).toEqual([]));
 
 test('the order is set by the Developers and confirmed by a Developer', async ({ page }) => {
   await expect(page.locator('main .eyebrow')).toHaveText('Stage 3 of 6 · working day 1 of 10');
-  await expect(card(page, 'todo', RESET).getByRole('button', { name: 'Start' })).toBeDisabled();
+  // Test round 4, issue 1: Start says why it can't go ahead yet instead of doing nothing.
+  await card(page, 'todo', RESET).getByRole('button', { name: 'Start' }).click();
+  await expect(title(page)).toHaveText('A Developer has not confirmed the Sprint Backlog order yet. Confirm it before starting work');
+  await expect(page.locator('section.flag-pending h2')).toHaveText('Sprint Backlog order');
+  await page.click('#ov-cancel');
+  await expect(card(page, 'todo', RESET)).toBeVisible();
   await page.getByRole('button', { name: 'Move item 1 down' }).click();
   await expect(page.locator('[data-order-item]').first()).toContainText(STATUS);
 
