@@ -126,8 +126,8 @@ describe('Sprint checks', () => {
   });
   it('starts items from the top (TEAM-01)', () => {
     expect(nextItem(items)?.id).toBe('b');
-    expect(startChecks(items, 'b')).toEqual([]);
-    expect(startChecks(items, 'c')[0]).toMatchObject({ rule: 'TEAM-01', detail: '“Third story” is not the next item; “Second story” is on top', target: 'item-c' });
+    expect(startChecks(items, 'b', 'Lena')).toEqual([]);
+    expect(startChecks(items, 'c', 'Lena')[0]).toMatchObject({ rule: 'TEAM-01', detail: '“Third story” is not the next item; “Second story” is on top', target: 'item-c' });
   });
   it('needs every Definition of Done line before Done (SG-233)', () => {
     expect(doneChecks(items[1], 5, 5)).toEqual([]);
@@ -176,4 +176,13 @@ describe('resolved exceptions', () => {
   });
   it('keeps it open while the problem is still there', () =>
     expect(resolveExceptions([po], [{ rule: 'SG-095', target: 'members', detail: 'Atlas has 3 Product Owners' }])[0].resolved).toBe(false));
+});
+
+// Test round 4, issue 1: Start says why it can't go ahead before the order is confirmed.
+describe('starting before the order is confirmed', () => {
+  const items: SprintItem[] = [{ id: 'a', title: 'First story', status: 'todo' }];
+  it('asks a Developer to confirm the order first', () =>
+    expect(startChecks(items, 'a', null)).toEqual([
+      { rule: 'SG-216', detail: 'A Developer has not confirmed the Sprint Backlog order yet. Confirm it before starting work', target: 'order' },
+    ]));
 });

@@ -87,7 +87,7 @@ function applies(team: Team, { sprint }: TeamData, intent: Intent): boolean {
     case 'confirm-order':
       return !sprint.confirmedBy && !!memberFor(team, intent.member);
     case 'start-item':
-      return !!sprint.confirmedBy && itemFor(sprint, intent.item)?.status === 'todo';
+      return itemFor(sprint, intent.item)?.status === 'todo';
     case 'done-item':
       return itemFor(sprint, intent.item)?.status === 'doing';
     case 'next-day':
@@ -117,7 +117,7 @@ export function findingsFor(team: Team, data: TeamData, intent: Intent): Finding
     case 'confirm-order':
       return confirmOrderChecks(memberFor(team, intent.member)!);
     case 'start-item':
-      return startChecks(sprint.items, intent.item);
+      return startChecks(sprint.items, intent.item, sprint.confirmedBy);
     case 'done-item': {
       const item = itemFor(sprint, intent.item)!;
       return doneChecks(item, team.dod.length, team.dod.filter(d => item.dodChecked.includes(d.id)).length);

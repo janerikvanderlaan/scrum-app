@@ -20,10 +20,15 @@ export function confirmOrderChecks(member: Member): Finding[] {
 }
 
 /** TEAM-01: items start from the top, in the confirmed order. */
-export function startChecks(items: readonly SprintItem[], id: string): Finding[] {
+export function startChecks(items: readonly SprintItem[], id: string, confirmedBy: string | null = null): Finding[] {
   const top = nextItem(items), item = items.find(b => b.id === id);
-  if (!item || !top || item.id === top.id) return [];
-  return [{ rule: 'TEAM-01', detail: `“${item.title}” is not the next item; “${top.title}” is on top`, target: `item-${item.id}` }];
+  if (!item) return [];
+  const findings: Finding[] = [];
+  if (!confirmedBy)
+    findings.push({ rule: 'SG-216', detail: 'A Developer has not confirmed the Sprint Backlog order yet. Confirm it before starting work', target: 'order' });
+  if (top && item.id !== top.id)
+    findings.push({ rule: 'TEAM-01', detail: `“${item.title}” is not the next item; “${top.title}” is on top`, target: `item-${item.id}` });
+  return findings;
 }
 
 /** SG-233: an item is Done only when it meets every line of the Definition of Done. */
