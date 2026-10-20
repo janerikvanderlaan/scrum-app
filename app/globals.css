@@ -88,3 +88,24 @@ tr.flag-warning td { background: var(--accent-soft); }
 .row.flag-pending { outline: 2px solid var(--block); outline-offset: 4px; border-radius: 8px; }
 .row.flag-override { outline: 2px solid var(--warn); outline-offset: 4px; border-radius: 8px; }
 .stage-link { font: inherit; background: none; border: 0; padding: 0; color: inherit; cursor: pointer; text-decoration: underline; }
+
+/* Sprint */
+.callout { border-radius: 8px; padding: 10px 12px; font-size: 14px; }
+.callout.warn { background: var(--warn-soft); color: var(--warn); } .callout.ok { background: var(--ok-soft); color: var(--ok); } .callout.info { background: var(--accent-soft); color: var(--accent); }
+.nowrap { white-space: nowrap; }
+.board { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+@media (max-width: 640px) { .board { grid-template-columns: minmax(0, 1fr); } }
+.col { background: var(--bg); border-radius: 10px; padding: 10px; display: grid; gap: 8px; align-content: start; min-height: 120px; }
+.card { position: relative; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 10px; display: grid; gap: 6px; font-size: 14px; justify-items: start; }
+.card .row { justify-content: space-between; width: 100%; }
+.card.flag-pending { border-color: var(--block); box-shadow: 0 0 0 2px var(--block-soft); }
+.card.flag-override { border-color: var(--warn); } .card.flag-warning { border-color: var(--accent); }
+.days { display: flex; gap: 6px; flex-wrap: wrap; border-radius: 10px; }
+.days.flag-pending { box-shadow: 0 0 0 2px var(--block-soft); }
+.day { font-family: var(--font-mono); font-size: 12px; width: 34px; height: 34px; border-radius: 8px; display: grid; place-items: center; border: 1px solid var(--line); color: var(--muted); }
+.day.held { background: var(--ok-soft); color: var(--ok); border-color: transparent; }
+.day.skipped { background: var(--block-soft); color: var(--block); border-color: transparent; }
+.day.today { border-color: var(--accent); color: var(--accent); font-weight: 600; }
+.day.flag-pending { box-shadow: 0 0 0 2px var(--block); } .day.flag-override { box-shadow: 0 0 0 2px var(--warn); } .day.flag-warning { box-shadow: 0 0 0 2px var(--accent); }
+.dod-check { background: var(--bg); }
+.check { font-weight: 400; display: flex; gap: 8px; align-items: center; }
