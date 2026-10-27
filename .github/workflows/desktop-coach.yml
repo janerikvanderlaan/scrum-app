@@ -1,0 +1,23 @@
+name: Desktop coach
+
+on:
+  pull_request:
+    paths: ['desktop-coach/**', '.github/workflows/desktop-coach.yml']
+  push:
+    branches: [main]
+    paths: ['desktop-coach/**', '.github/workflows/desktop-coach.yml']
+
+jobs:
+  build-and-test:
+    runs-on: macos-15
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: desktop-coach
+    steps:
+      - uses: actions/checkout@v4
+      - run: swift --version
+      - name: Build
+        run: swift build
+      - name: Rule unit tests
+        run: swift test
