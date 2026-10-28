@@ -18,7 +18,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         setUpMenu()
         HotKey.register { [weak self] in self?.checkNow() }
-        watcher.onFieldLeft = { [weak self] field in self?.evaluate(field, askedByUser: false) }
+        // Only what the person wrote or changed: tabbing through existing items stays quiet.
+        watcher.onFieldLeft = { [weak self] field, changed in
+            if changed { self?.evaluate(field, askedByUser: false) }
+        }
 
         let prompt = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
         if AXIsProcessTrustedWithOptions(prompt) {

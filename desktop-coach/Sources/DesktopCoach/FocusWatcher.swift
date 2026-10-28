@@ -5,10 +5,15 @@ import ApplicationServices
 /// When the focus leaves a field (another field, or another app), it reports
 /// that field's final content, so the coach explains afterwards and never interrupts typing.
 final class FocusWatcher: NSObject {
-    var onFieldLeft: ((FieldSnapshot) -> Void)?
+    /// The field that lost the focus, and whether its text changed while it had the focus.
+    var onFieldLeft: ((FieldSnapshot, Bool) -> Void)?
 
     /// The element that has the focus in the watched app right now.
-    private(set) var current: AXUIElement?
+    private(set) var current: AXUIElement? {
+        didSet { textOnEntry = current.flatMap { AX.snapshot(of: $0)?.text } }
+    }
+    /// The text the current field had when it got the focus.
+    private var textOnEntry: String?
     private var observer: AXObserver?
 
     func start() {
@@ -58,7 +63,9 @@ final class FocusWatcher: NSObject {
     private func focusMoved(to element: AXUIElement?) {
         if let previous = current {
             let left = element.map { !CFEqual(previous, $0) } ?? true
-            if left, let snapshot = AX.snapshot(of: previous) { onFieldLeft?(snapshot) }
+            if left, let snapshot = AX.snapshot(of: previous) {
+                onFieldLeft?(snapshot, snapshot.text != (textOnEntry ?? ""))
+            }
         }
         current = element
     }
