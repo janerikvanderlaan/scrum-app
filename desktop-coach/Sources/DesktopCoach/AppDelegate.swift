@@ -7,7 +7,7 @@ import CoachCore
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusItem: NSStatusItem!
     private var anyAppItem: NSMenuItem!
-    private let watcher = FocusWatcher()
+    private let watcher: FieldSource = FocusWatcher()
     private let panel = HintPanel()
     private var anyAppMode = false
     private var started = false
@@ -93,8 +93,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func currentField() -> FieldSnapshot? {
-        guard let element = watcher.current ?? AX.focusedElementSystemWide() else { return nil }
-        return AX.snapshot(of: element)
+        watcher.currentField()
     }
 
     @objc private func checkNow() {

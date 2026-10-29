@@ -78,13 +78,42 @@ command you type in the **Terminal** app (find it with Spotlight, ⌘-Space, "Te
    coach read. A screenshot of that window tells us what Jira exposes, which is
    exactly what this spike is meant to find out.
 
-## Code
+## Architecture
 
-- `Sources/CoachCore`: the rules and all wording, as pure functions with unit tests
-  (`swift test`). No AppKit here.
-- `Sources/DesktopCoach`: the menu bar app. `AX.swift` reads fields,
-  `FocusWatcher.swift` follows the focus with an AXObserver, `HintPanel.swift`
-  shows the tip without taking the keyboard focus, `HotKey.swift` is Control-Option-C.
+The coach has three layers. Each one only talks to the one below it through a
+small, plain data type, so a layer can be replaced without touching the others.
+
+1. **Field sources** (`Sources/DesktopCoach`) turn what is on screen into
+   `FieldSnapshot`s: which app, which field (type and label), the text, and where
+   it is. A source implements the `FieldSource` protocol
+   (`FieldSource.swift`). Today there is one source, `FocusWatcher.swift`, which
+   follows the keyboard focus with the macOS Accessibility API (`AX.swift`).
+2. **Coaching** (`AppDelegate.swift`, `HintPanel.swift`, `HotKey.swift`) decides
+   *when* to help (after leaving a changed field, or when asked with
+   Control-Option-C) and shows the tip without taking the keyboard focus.
+3. **Rules and wording** (`Sources/CoachCore`) are pure functions with unit tests
+   (`swift test`): which fields are in scope, which rule applies, and the friendly
+   What / Why / How text. No AppKit and no Accessibility API here.
+
+### Planned: legacy apps in terminal emulators
+
+Older back-office applications often run in a terminal emulator (IBM 3270 or
+5250, frequently inside a browser). The Accessibility API then sees the whole
+terminal screen as **one** field, so field recognition doesn't work there.
+
+This is meant to be added later as a separate, switchable field source, without
+changing coaching or the rules:
+
+- A **terminal-screen source** reads the full screen text (24×80 or similar) and
+  the cursor position, and cuts it into *virtual fields* using a **screen map**
+  per application: "screen ORD01, row 6, columns 20–60 is the Order description".
+- It produces the same `FieldSnapshot`s as today (label from the screen map, text
+  from those columns, "field left" when the cursor moves out or Enter is pressed),
+  so every existing rule works on terminal screens unchanged.
+- It is off by default and switched on per application, next to the
+  Accessibility source; screen maps are configuration, not code.
+
+Nothing of this is built yet; the `FieldSource` protocol is the place it plugs in.
 
 CI builds and tests it on a macOS runner (`.github/workflows/desktop-coach.yml`).
 

@@ -4,7 +4,7 @@ import ApplicationServices
 /// Follows the keyboard focus in the frontmost app with an AXObserver.
 /// When the focus leaves a field (another field, or another app), it reports
 /// that field's final content, so the coach explains afterwards and never interrupts typing.
-final class FocusWatcher: NSObject {
+final class FocusWatcher: NSObject, FieldSource {
     /// The field that lost the focus, and whether its text changed while it had the focus.
     var onFieldLeft: ((FieldSnapshot, Bool) -> Void)?
 
@@ -68,5 +68,10 @@ final class FocusWatcher: NSObject {
             }
         }
         current = element
+    }
+
+    func currentField() -> FieldSnapshot? {
+        guard let element = current ?? AX.focusedElementSystemWide() else { return nil }
+        return AX.snapshot(of: element)
     }
 }
