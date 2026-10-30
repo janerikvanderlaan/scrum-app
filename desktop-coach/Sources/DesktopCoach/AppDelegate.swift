@@ -7,20 +7,22 @@ import CoachCore
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusItem: NSStatusItem!
     private var anyAppItem: NSMenuItem!
+    private var velocityItem: NSMenuItem!
     private let watcher: FieldSource = FocusWatcher()
     private let panel = HintPanel()
     private var anyAppMode = false
     private var started = false
     private var accessTimer: Timer?
-    /// Texts the person already saw a hint for; not repeated this session.
+    /// Findings the person already saw a hint for; not repeated this session.
     private var explained = Set<String>()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         setUpMenu()
         HotKey.register { [weak self] in self?.checkNow() }
-        // Only what the person wrote or changed: tabbing through existing items stays quiet.
+        // Text rules only look at what the person wrote or changed, so tabbing through
+        // existing items stays quiet; the Sprint Goal check looks at the whole dialog.
         watcher.onFieldLeft = { [weak self] field, changed in
-            if changed { self?.evaluate(field, askedByUser: false) }
+            self?.evaluate(field, changed: changed, askedByUser: false)
         }
 
         let prompt = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
@@ -46,23 +48,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     // MARK: Rules
 
-    private func evaluate(_ field: FieldSnapshot, askedByUser: Bool) {
-        guard CoachScope.shouldCoach(field.info, anyApp: anyAppMode) else {
-            if askedByUser { panel.show(CoachMessages.nothingToCheck, near: field.frame) }
-            return
-        }
-        if let hint = UserStoryRule.check(field.text) {
-            // Explain once per text unless the person asks again.
-            if !askedByUser && explained.contains(field.text) { return }
-            let text = field.text
-            panel.show(hint.message, near: field.frame) { [weak self] in self?.explained.insert(text) }
-        } else if askedByUser {
-            panel.show(CoachMessages.allGood(fieldLabel: shortLabel(field.info.label)), near: field.frame)
-        }
+    private var settings: CoachSettings {
+        let stored = UserDefaults.standard.integer(forKey: "averageVelocity")
+        return CoachSettings(averageVelocity: stored > 0 ? stored : 10)
     }
 
-    private func shortLabel(_ label: String) -> String {
-        label.components(separatedBy: " · ").first ?? ""
+    private func evaluate(_ field: FieldSnapshot, changed: Bool, askedByUser: Bool) {
+        let outcome = CoachScope.shouldCoach(field.info, anyApp: anyAppMode)
+            ? CoachRules.check(field: field.info, text: field.text, form: field.form,
+                               changed: changed || askedByUser, settings: settings, anyApp: anyAppMode)
+            : .notApplicable
+        switch outcome {
+        case .hint(let hint):
+            // Explain once per finding unless the person asks again.
+            let key = hint.dedupeKey
+            if !askedByUser && explained.contains(key) { return }
+            panel.show(hint.message, near: field.frame) { [weak self] in self?.explained.insert(key) }
+        case .fine(let message):
+            if askedByUser { panel.show(message, near: field.frame) }
+        case .notApplicable:
+            if askedByUser { panel.show(CoachMessages.nothingToCheck, near: field.frame) }
+        }
     }
 
     // MARK: Menu
@@ -75,6 +81,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         menu.addItem(.separator())
         anyAppItem = menu.addItem(withTitle: "Coach in every app (test mode)", action: #selector(toggleAnyApp), keyEquivalent: "")
         anyAppItem.target = self
+        velocityItem = menu.addItem(withTitle: velocityTitle(), action: #selector(setVelocity), keyEquivalent: "")
+        velocityItem.target = self
         menu.addItem(.separator())
         menu.addItem(withTitle: "Quit Coach", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         statusItem.menu = menu
@@ -101,7 +109,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         guard let field = currentField(), CoachScope.isReadableTextField(field.info) else {
             return panel.show(CoachMessages.cannotRead, near: nil)
         }
-        evaluate(field, askedByUser: true)
+        evaluate(field, changed: true, askedByUser: true)
     }
 
     /// For the spike: shows exactly what the Accessibility API gives us, so we can learn what Jira exposes.
@@ -117,6 +125,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             "Label: \(info.label.isEmpty ? "none" : info.label)",
             "Text: \(preview.isEmpty ? "(empty or not read)" : preview)",
             "Coached: \(CoachScope.shouldCoach(info, anyApp: anyAppMode) ? "yes" : "no")",
+            "Dialog fields: \(field.form.isEmpty ? "none" : field.form.map { CoachRules.shortLabel($0.label) }.joined(separator: ", "))",
         ]
         let message = CoachMessage(
             title: "What the coach sees",
@@ -124,6 +133,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             buttonTitle: "Close"
         )
         panel.show(message, near: field.frame)
+    }
+
+    private func velocityTitle() -> String {
+        "Average velocity: \(settings.averageVelocity) points…"
+    }
+
+    /// The team's average velocity, used by SG-200. Stored on this Mac only.
+    @objc private func setVelocity() {
+        let alert = NSAlert()
+        alert.messageText = "Team's average velocity"
+        alert.informativeText = "The average number of story points the team finishes per Sprint. Items estimated above it get a tip about splitting."
+        let input = NSTextField(frame: NSRect(x: 0, y: 0, width: 120, height: 24))
+        input.stringValue = String(settings.averageVelocity)
+        alert.accessoryView = input
+        alert.addButton(withTitle: "Save")
+        alert.addButton(withTitle: "Cancel")
+        NSApp.activate(ignoringOtherApps: true)
+        guard alert.runModal() == .alertFirstButtonReturn,
+              let value = Int(input.stringValue.trimmingCharacters(in: .whitespaces)), value > 0 else { return }
+        UserDefaults.standard.set(value, forKey: "averageVelocity")
+        velocityItem.title = velocityTitle()
     }
 
     @objc private func toggleAnyApp() {
