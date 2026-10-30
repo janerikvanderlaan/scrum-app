@@ -9,6 +9,8 @@ let package = Package(
         .target(name: "CoachCore"),
         // The menu bar app that reads the focused field and shows hints.
         .executableTarget(name: "DesktopCoach", dependencies: ["CoachCore"]),
+        // Diagnostic logger: shows which focus, value, click and key events an app really reports.
+        .executableTarget(name: "CoachProbe", dependencies: ["CoachCore"]),
         .testTarget(name: "CoachCoreTests", dependencies: ["CoachCore"]),
     ]
 )

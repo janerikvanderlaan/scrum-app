@@ -293,3 +293,36 @@ final class PlanningRulesTests: XCTestCase {
         }
     }
 }
+
+final class ProbeFormatTests: XCTestCase {
+    func testNamedKeysAndModifiers() {
+        XCTAssertEqual(ProbeFormat.keyName(keyCode: 48), "Tab")
+        XCTAssertEqual(ProbeFormat.keyName(keyCode: 48, shift: true), "Shift-Tab")
+        XCTAssertEqual(ProbeFormat.keyName(keyCode: 36), "Return")
+        XCTAssertEqual(ProbeFormat.keyName(keyCode: 53), "Escape")
+        XCTAssertEqual(ProbeFormat.keyName(keyCode: 122), "F-key")
+        XCTAssertEqual(ProbeFormat.keyName(keyCode: 8, control: true, option: true), "Control-Option-character")
+    }
+
+    func testTypedCharactersAreNeverNamed() {
+        // "a" is key code 0, "1" is 18: both are only "character", also with Shift (no hint of capitals).
+        XCTAssertEqual(ProbeFormat.keyName(keyCode: 0), "character")
+        XCTAssertEqual(ProbeFormat.keyName(keyCode: 18, shift: true), "character")
+    }
+
+    func testPreviewCutsAndHides() {
+        XCTAssertEqual(ProbeFormat.preview("10", showText: true), "\"10\"")
+        XCTAssertEqual(ProbeFormat.preview("line one\nline two", showText: true), "\"line one⏎line two\"")
+        XCTAssertEqual(ProbeFormat.preview(String(repeating: "x", count: 70), showText: true, limit: 5), "\"xxxxx…\"")
+        XCTAssertEqual(ProbeFormat.preview("secret plan", showText: false), "(11 chars)")
+        XCTAssertEqual(ProbeFormat.preview(nil, showText: true), "-")
+    }
+
+    func testLineHasTimeAndAlignedTag() {
+        var parts = DateComponents()
+        parts.year = 2026; parts.month = 10; parts.day = 30
+        parts.hour = 13; parts.minute = 5; parts.second = 7; parts.nanosecond = 250_400_000
+        let date = Calendar.current.date(from: parts)!
+        XCTAssertEqual(ProbeFormat.line(at: date, tag: "key", "Tab"), "13:05:07.250 key     Tab")
+    }
+}

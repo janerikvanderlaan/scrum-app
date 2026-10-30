@@ -93,6 +93,45 @@ command you type in the **Terminal** app (find it with Spotlight, ⌘-Space, "Te
    other fields of the dialog the coach read. A screenshot of that window tells us what Jira exposes, which is
    exactly what this spike is meant to find out.
 
+## Log what the screen reports (CoachProbe)
+
+The coach depends on what macOS and the app report: which element has the focus,
+when a value changes, when a dialog opens. Safari doesn't always report this the
+way we expect, so there's a separate small logger to see it for ourselves.
+
+1. In Terminal, in the `desktop-coach` folder, start it:
+
+   ```sh
+   swift run CoachProbe
+   ```
+
+   It uses the same Accessibility permission as the coach (granted to Terminal).
+   You can run it alongside the coach or on its own.
+2. Use Jira as usual: click, tab, type, open the Start Sprint dialog, click Start.
+   Press **Control-Option-M** just before a step you want to look at; it writes
+   "marker 1", "marker 2" … into the log so we can find that moment.
+3. Press **Control-C** in Terminal to stop. The log is in the folder
+   `coach-probe-logs` in your home folder (Finder: Go > Home). Send me that file.
+
+Each line has the time (to the millisecond), a tag and the details:
+
+| Tag | What it means |
+|---|---|
+| `app` | another app came to the front |
+| `focus` | the app reported a new focused element (and, if different, what it says when asked) |
+| `value` | the app reported that an element's value changed |
+| `poll` | the probe looked itself (4 times a second) and found a focus or value change the app **didn't** report |
+| `gone` | the focused element was removed, for example an inline editor that closed |
+| `window` | a window, sheet or menu opened, closed or got the focus |
+| `click` | a mouse click, with the element under the pointer and the button it is in |
+| `key` | a key by its kind: Tab, Shift-Tab, Return, Escape, arrows or just "character" |
+| `mark` | your Control-Option-M marker |
+
+Privacy: it logs which kind of key you press, never which letter or digit. Field
+values are logged as a short preview (60 characters) so we can see for example an
+estimate change; start it with `swift run CoachProbe --no-text` to log only their
+length. Password and search fields are never read. The log stays on your Mac.
+
 ## Architecture
 
 The coach has three layers. Each one only talks to the one below it through a
