@@ -67,15 +67,19 @@ public enum SprintGoalRule {
         form.first { isGoalField(label: $0.label) }
     }
 
+    /// One finding per Sprint: the Sprint name from the dialog.
+    public static func key(form: [FormField]) -> String {
+        form.first { isNameField(label: $0.label) }?.text ?? ""
+    }
+
     /// nil when the form has no Sprint goal field or the goal is filled in.
     public static func check(form: [FormField]) -> Hint? {
         guard let goal = goalField(in: form),
               CoachScope.writtenText(goal.text, placeholder: nil).trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         else { return nil }
-        let sprintName = form.first { isNameField(label: $0.label) }?.text ?? ""
         return Hint(
             ruleID: ruleID,
-            key: sprintName,
+            key: key(form: form),
             what: "This Sprint doesn't have a Sprint Goal yet.",
             why: "The Sprint Goal gives the Developers one shared focus for the Sprint. When work turns out different than planned, it helps the team decide together what matters most.",
             how: "Before you start the Sprint, write one sentence in the Sprint goal field on what this Sprint achieves and why that's valuable. For example: \"Customers can pay with iDEAL, so fewer orders are abandoned.\"",
@@ -84,12 +88,58 @@ public enum SprintGoalRule {
     }
 }
 
+/// TEAM-03: a Sprint starts with a forecast that fits the team's average velocity.
+/// For now the total is read from the screen (the backlog header of the Sprint) and the
+/// velocity comes from the coach's setting; reading both from Jira itself comes later.
+public enum SprintForecastRule {
+    public static let ruleID = "TEAM-03"
+    public static let source = "Team agreement: \"A Sprint starts only with sized user stories whose total stays within the team's average velocity.\""
+
+    public static func check(total: Double?, averageVelocity: Int, sprintName: String) -> Hint? {
+        guard let total, averageVelocity > 0, total > Double(averageVelocity) else { return nil }
+        let shown = total.rounded() == total ? String(Int(total)) : String(total)
+        return Hint(
+            ruleID: ruleID,
+            key: sprintName,
+            what: "This Sprint's forecast is \(shown) points, more than the team's average velocity of \(averageVelocity).",
+            why: "Your team agreed to start a Sprint with a forecast that fits what you usually finish. That keeps the Sprint Goal within reach and leaves room for the unexpected.",
+            how: "Consider moving the lowest-ordered items back to the Product Backlog until the total fits, and check the Sprint Goal still holds.",
+            source: source
+        )
+    }
+}
+
+/// Finds a Sprint's total estimate in the texts of the backlog page, in reading order.
+/// Jira shows it in the Sprint's header, after the Sprint name: "Schatting: 10 van 10"
+/// or "Estimate: 10 of 10" (visible items of all items; the second number is the total).
+public enum SprintTotal {
+    private static let estimate = try! NSRegularExpression(
+        pattern: #"(?:schatting|estimate)\s*:?\s*([0-9]+(?:[.,][0-9]+)?)(?:\s*(?:van|of)\s*([0-9]+(?:[.,][0-9]+)?))?"#,
+        options: [.caseInsensitive]
+    )
+
+    public static func find(in texts: [String], sprintName: String) -> Double? {
+        let name = sprintName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !name.isEmpty else { return nil }
+        for (index, text) in texts.enumerated() where text.trimmingCharacters(in: .whitespaces).hasPrefix(name) {
+            let window = texts[(index + 1)..<min(texts.count, index + 40)].joined(separator: " ")
+            guard let match = estimate.firstMatch(in: window, range: NSRange(window.startIndex..., in: window)) else { continue }
+            let group = match.range(at: 2).location != NSNotFound ? 2 : 1
+            guard let range = Range(match.range(at: group), in: window) else { continue }
+            return Double(window[range].replacingOccurrences(of: ",", with: "."))
+        }
+        return nil
+    }
+}
+
 /// What the coach concluded about one field.
 public enum CoachOutcome: Equatable, Sendable {
     /// No rule looks at this field.
     case notApplicable
     /// A rule looked and everything is fine; the message is shown only when the person asked.
-    case fine(CoachMessage)
+    /// `key` is the dedupeKey a hint about the same thing would have, so a later
+    /// regression (a goal filled in, then deleted) is explained again.
+    case fine(CoachMessage, key: String)
     case hint(Hint)
 }
 
@@ -102,28 +152,49 @@ public struct CoachSettings: Equatable, Sendable {
 }
 
 /// Picks the rule that fits the field. The order matters: the Sprint dialog first
-/// (it applies to every field in it), then story points, then the user story text.
+/// (Sprint Goal, then the forecast; it applies to every field in it), then story points,
+/// then the user story text.
 public enum CoachRules {
     /// `changed` is false when the person only passed through the field without editing it;
     /// text rules stay quiet then, the Sprint Goal check doesn't (an empty goal is never typed).
+    /// `nextLabel` is the label of the field that got the focus: moving into the Sprint goal
+    /// field means the person is about to fill it in, so the coach waits.
+    /// `sprintTotal` is the Sprint's total estimate read from the page (nil when not found).
     /// `anyApp` is the test mode: the user story rule applies to every text field.
     public static func check(field: FieldInfo, text: String, form: [FormField], changed: Bool,
-                             settings: CoachSettings, anyApp: Bool = false) -> CoachOutcome {
+                             settings: CoachSettings, nextLabel: String? = nil, sprintTotal: Double? = nil,
+                             anyApp: Bool = false) -> CoachOutcome {
         if SprintGoalRule.goalField(in: form) != nil {
-            if let hint = SprintGoalRule.check(form: form) { return .hint(hint) }
-            return .fine(CoachMessages.fine("This Sprint has a Sprint Goal. Nice work."))
+            let sprintName = SprintGoalRule.key(form: form)
+            let goalHint = SprintGoalRule.check(form: form)
+            let movingIntoGoal = nextLabel.map { SprintGoalRule.isGoalField(label: $0) } ?? false
+            if let goalHint, !movingIntoGoal { return .hint(goalHint) }
+            if let hint = SprintForecastRule.check(total: sprintTotal, averageVelocity: settings.averageVelocity,
+                                                   sprintName: sprintName) {
+                return .hint(hint)
+            }
+            // Empty goal while she moves into the goal field: wait, she's about to fill it in.
+            if goalHint != nil { return .notApplicable }
+            var message = "This Sprint has a Sprint Goal."
+            if let sprintTotal {
+                let shown = sprintTotal.rounded() == sprintTotal ? String(Int(sprintTotal)) : String(sprintTotal)
+                message += " Its forecast of \(shown) points fits within the average velocity of \(settings.averageVelocity)."
+            }
+            return .fine(CoachMessages.fine(message + " Nice work."), key: "\(SprintGoalRule.ruleID)|\(sprintName)")
         }
         if StoryPointsRule.appliesTo(label: field.label) {
             guard StoryPointsRule.points(in: text) != nil else { return .notApplicable }
             if changed, let hint = StoryPointsRule.check(text, averageVelocity: settings.averageVelocity) {
                 return .hint(hint)
             }
-            return .fine(CoachMessages.fine("This estimate fits within the team's average velocity of \(settings.averageVelocity) points."))
+            return .fine(CoachMessages.fine("This estimate fits within the team's average velocity of \(settings.averageVelocity) points."),
+                         key: "\(StoryPointsRule.ruleID)|\(text)")
         }
         if anyApp || CoachScope.isStoryField(label: field.label) {
             guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return .notApplicable }
             if changed, let hint = UserStoryRule.check(text) { return .hint(hint) }
-            return .fine(CoachMessages.allGood(fieldLabel: shortLabel(field.label)))
+            return .fine(CoachMessages.allGood(fieldLabel: shortLabel(field.label)),
+                         key: "\(UserStoryRule.ruleID)|\(text.trimmingCharacters(in: .whitespacesAndNewlines))")
         }
         return .notApplicable
     }

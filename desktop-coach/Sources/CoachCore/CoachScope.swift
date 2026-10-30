@@ -22,7 +22,8 @@ public struct FieldInfo: Equatable, Sendable {
 /// test mode). Which rule applies to a field is decided by CoachRules.
 /// Password and search fields are never read.
 public enum CoachScope {
-    public static let textRoles: Set<String> = ["AXTextField", "AXTextArea", "AXComboBox"]
+    /// AXIncrementor: number inputs with up/down arrows, such as Jira's inline story point editor.
+    public static let textRoles: Set<String> = ["AXTextField", "AXTextArea", "AXComboBox", "AXIncrementor"]
     public static let skippedSubroles: Set<String> = ["AXSecureTextField", "AXSearchField"]
     private static let storyLabels = ["summary", "description", "title", "story", "samenvatting", "beschrijving", "titel"]
 

@@ -8,6 +8,10 @@ rule from the team's rule set isn't met, shows a friendly tip. Rules so far:
 | **TEAM-02** | Summary, Description | the text isn't written as "As a … I want to … so that …" |
 | **SG-200** | Story point estimate | the estimate is above the team's average velocity (set it in the menu, default 10) |
 | **SG-150** | Start Sprint dialog | the Sprint goal field is empty |
+| **TEAM-03** | Start Sprint dialog | the Sprint's total estimate (read from its backlog header, "Schatting: 10 van 10") is above the average velocity |
+
+For now the average velocity is the coach's own setting. Reading Jira's velocity (and the
+Sprint total) straight from Jira with a read-only API token is planned for later.
 
 This is a spike: it answers "can a local coach see the field we're in (Jira in
 Safari) without screenshots?" It is not part of the scrum-app web app.

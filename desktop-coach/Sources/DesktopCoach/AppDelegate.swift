@@ -21,8 +21,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         HotKey.register { [weak self] in self?.checkNow() }
         // Text rules only look at what the person wrote or changed, so tabbing through
         // existing items stays quiet; the Sprint Goal check looks at the whole dialog.
-        watcher.onFieldLeft = { [weak self] field, changed in
-            self?.evaluate(field, changed: changed, askedByUser: false)
+        watcher.onFieldLeft = { [weak self] field, changed, nextLabel in
+            self?.evaluate(field, changed: changed, nextLabel: nextLabel, askedByUser: false)
         }
 
         let prompt = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
@@ -53,10 +53,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         return CoachSettings(averageVelocity: stored > 0 ? stored : 10)
     }
 
-    private func evaluate(_ field: FieldSnapshot, changed: Bool, askedByUser: Bool) {
+    private func evaluate(_ field: FieldSnapshot, changed: Bool, nextLabel: String? = nil, askedByUser: Bool) {
         let outcome = CoachScope.shouldCoach(field.info, anyApp: anyAppMode)
             ? CoachRules.check(field: field.info, text: field.text, form: field.form,
-                               changed: changed || askedByUser, settings: settings, anyApp: anyAppMode)
+                               changed: changed || askedByUser, settings: settings,
+                               nextLabel: nextLabel, sprintTotal: field.sprintTotal, anyApp: anyAppMode)
             : .notApplicable
         switch outcome {
         case .hint(let hint):
@@ -64,7 +65,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             let key = hint.dedupeKey
             if !askedByUser && explained.contains(key) { return }
             panel.show(hint.message, near: field.frame) { [weak self] in self?.explained.insert(key) }
-        case .fine(let message):
+        case .fine(let message, let key):
+            // Fixed now: if it goes wrong again later, explain it again.
+            explained.remove(key)
             if askedByUser { panel.show(message, near: field.frame) }
         case .notApplicable:
             if askedByUser { panel.show(CoachMessages.nothingToCheck, near: field.frame) }
@@ -126,6 +129,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             "Text: \(preview.isEmpty ? "(empty or not read)" : preview)",
             "Coached: \(CoachScope.shouldCoach(info, anyApp: anyAppMode) ? "yes" : "no")",
             "Dialog fields: \(field.form.isEmpty ? "none" : field.form.map { CoachRules.shortLabel($0.label) }.joined(separator: ", "))",
+            "Sprint total on page: \(field.sprintTotal.map { String($0) } ?? "not found")",
         ]
         let message = CoachMessage(
             title: "What the coach sees",
