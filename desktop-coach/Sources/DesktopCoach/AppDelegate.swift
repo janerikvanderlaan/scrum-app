@@ -57,7 +57,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let outcome = CoachScope.shouldCoach(field.info, anyApp: anyAppMode)
             ? CoachRules.check(field: field.info, text: field.text, form: field.form,
                                changed: changed || askedByUser, settings: settings,
-                               nextLabel: nextLabel, anyApp: anyAppMode)
+                               nextLabel: nextLabel, sprintTotal: field.sprintTotal, anyApp: anyAppMode)
             : .notApplicable
         switch outcome {
         case .hint(let hint):
@@ -129,6 +129,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             "Text: \(preview.isEmpty ? "(empty or not read)" : preview)",
             "Coached: \(CoachScope.shouldCoach(info, anyApp: anyAppMode) ? "yes" : "no")",
             "Dialog fields: \(field.form.isEmpty ? "none" : field.form.map { CoachRules.shortLabel($0.label) }.joined(separator: ", "))",
+            "Sprint total on page: \(field.sprintTotal.map { String($0) } ?? "not found")",
         ]
         let message = CoachMessage(
             title: "What the coach sees",

@@ -11,6 +11,8 @@ struct FieldSnapshot {
     let frame: CGRect?
     /// The text fields of the dialog the field is in (such as Jira's Start Sprint dialog), else empty.
     let form: [FormField]
+    /// In a Sprint dialog: the Sprint's total estimate from the backlog header on the page.
+    let sprintTotal: Double?
 }
 
 /// Thin helpers around the macOS Accessibility (AXUIElement) API.
@@ -110,6 +112,27 @@ enum AX {
         return fields
     }
 
+    /// The visible texts of the web page around the element, in reading order.
+    static func pageTexts(around element: AXUIElement, limit: Int = 5000) -> [String] {
+        var webArea: AXUIElement? = element
+        while let el = webArea, string(el, kAXRoleAttribute) != "AXWebArea" {
+            webArea = self.element(el, kAXParentAttribute)
+        }
+        guard let root = webArea else { return [] }
+        var texts: [String] = []
+        var stack = [root]
+        var visited = 0
+        while let el = stack.popLast(), visited < limit {
+            visited += 1
+            if string(el, kAXRoleAttribute) == "AXStaticText" {
+                if let text = string(el, kAXValueAttribute), !text.isEmpty { texts.append(text) }
+                continue
+            }
+            stack.append(contentsOf: children(of: el).reversed())
+        }
+        return texts
+    }
+
     static func frame(of element: AXUIElement) -> CGRect? {
         guard let position = attribute(element, kAXPositionAttribute), CFGetTypeID(position) == AXValueGetTypeID(),
               let size = attribute(element, kAXSizeAttribute), CFGetTypeID(size) == AXValueGetTypeID() else { return nil }
@@ -120,7 +143,8 @@ enum AX {
         return CGRect(origin: point, size: extent)
     }
 
-    static func snapshot(of element: AXUIElement) -> FieldSnapshot? {
+    /// `context: false` reads only the field itself (cheap, used when a field gets the focus).
+    static func snapshot(of element: AXUIElement, context: Bool = true) -> FieldSnapshot? {
         guard let role = string(element, kAXRoleAttribute) else { return nil }
         var pid: pid_t = 0
         AXUIElementGetPid(element, &pid)
@@ -134,7 +158,14 @@ enum AX {
         // Never read the value of a password or search field.
         let value = CoachScope.isReadableTextField(info) ? (string(element, kAXValueAttribute) ?? "") : ""
         let text = CoachScope.writtenText(value, placeholder: string(element, kAXPlaceholderValueAttribute))
+        guard context else {
+            return FieldSnapshot(info: info, text: text, frame: nil, form: [], sprintTotal: nil)
+        }
         let form = dialog(containing: element).map(formFields(in:)) ?? []
-        return FieldSnapshot(info: info, text: text, frame: frame(of: element), form: form)
+        var sprintTotal: Double?
+        if SprintGoalRule.goalField(in: form) != nil {
+            sprintTotal = SprintTotal.find(in: pageTexts(around: element), sprintName: SprintGoalRule.key(form: form))
+        }
+        return FieldSnapshot(info: info, text: text, frame: frame(of: element), form: form, sprintTotal: sprintTotal)
     }
 }

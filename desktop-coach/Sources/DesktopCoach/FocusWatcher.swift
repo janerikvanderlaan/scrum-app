@@ -10,7 +10,7 @@ final class FocusWatcher: NSObject, FieldSource {
 
     /// The element that has the focus in the watched app right now.
     private(set) var current: AXUIElement? {
-        didSet { textOnEntry = current.flatMap { AX.snapshot(of: $0)?.text } }
+        didSet { textOnEntry = current.flatMap { AX.snapshot(of: $0, context: false)?.text } }
     }
     /// The text the current field had when it got the focus.
     private var textOnEntry: String?
