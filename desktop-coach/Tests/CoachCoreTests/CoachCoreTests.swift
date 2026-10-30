@@ -94,6 +94,11 @@ final class CoachScopeTests: XCTestCase {
         XCTAssertEqual(CoachScope.writtenText("Fix login bug", placeholder: nil), "Fix login bug")
     }
 
+    func testCoachesJiraNumberInputs() {
+        // Test round 1, issue 4: Jira's inline story point editor is a number input (AXIncrementor).
+        XCTAssertTrue(CoachScope.shouldCoach(field(role: "AXIncrementor", label: "Story point estimate"), anyApp: false))
+    }
+
     func testTestModeCoachesAnyTextField() {
         XCTAssertTrue(CoachScope.shouldCoach(field(url: nil, label: ""), anyApp: true))
     }

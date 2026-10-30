@@ -27,6 +27,12 @@ enum AX {
         attribute(element, name) as? String
     }
 
+    /// A field's value as text; number inputs report a number instead of a string.
+    static func textValue(_ element: AXUIElement) -> String? {
+        let value = attribute(element, kAXValueAttribute)
+        return (value as? String) ?? (value as? NSNumber)?.stringValue
+    }
+
     static func element(_ element: AXUIElement, _ name: String) -> AXUIElement? {
         guard let value = attribute(element, name), CFGetTypeID(value) == AXUIElementGetTypeID() else { return nil }
         return (value as! AXUIElement)
@@ -101,7 +107,7 @@ enum AX {
             if let role = string(el, kAXRoleAttribute), CoachScope.textRoles.contains(role) {
                 let subrole = string(el, kAXSubroleAttribute)
                 if subrole.map(CoachScope.skippedSubroles.contains) != true {
-                    let value = string(el, kAXValueAttribute) ?? ""
+                    let value = textValue(el) ?? ""
                     let text = CoachScope.writtenText(value, placeholder: string(el, kAXPlaceholderValueAttribute))
                     fields.append(FormField(label: label(of: el), text: text))
                 }
@@ -143,7 +149,7 @@ enum AX {
         return CGRect(origin: point, size: extent)
     }
 
-    /// `context: false` reads only the field itself (cheap, used when a field gets the focus).
+    /// `context: false` reads only the field itself (cheap, used while a field has the focus).
     static func snapshot(of element: AXUIElement, context: Bool = true) -> FieldSnapshot? {
         guard let role = string(element, kAXRoleAttribute) else { return nil }
         var pid: pid_t = 0
@@ -156,10 +162,10 @@ enum AX {
             label: label(of: element)
         )
         // Never read the value of a password or search field.
-        let value = CoachScope.isReadableTextField(info) ? (string(element, kAXValueAttribute) ?? "") : ""
+        let value = CoachScope.isReadableTextField(info) ? (textValue(element) ?? "") : ""
         let text = CoachScope.writtenText(value, placeholder: string(element, kAXPlaceholderValueAttribute))
         guard context else {
-            return FieldSnapshot(info: info, text: text, frame: nil, form: [], sprintTotal: nil)
+            return FieldSnapshot(info: info, text: text, frame: frame(of: element), form: [], sprintTotal: nil)
         }
         let form = dialog(containing: element).map(formFields(in:)) ?? []
         var sprintTotal: Double?
