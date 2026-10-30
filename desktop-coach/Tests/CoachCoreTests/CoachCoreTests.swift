@@ -282,7 +282,9 @@ final class PlanningRulesTests: XCTestCase {
             for blame in ["you forgot", "wrong", "error", "failed", "must", "not allowed"] {
                 XCTAssertFalse(own.contains(blame), "\(found.ruleID) unfriendly word: \(blame)")
             }
-            XCTAssertTrue(found.source.contains("Scrum Guide 2020"))
+            // Guide rules quote the Scrum Guide, team rules quote the team agreement.
+            let expected = found.ruleID.hasPrefix("SG-") ? "Scrum Guide 2020" : "Team agreement"
+            XCTAssertTrue(found.source.contains(expected), "\(found.ruleID) source: \(found.source)")
         }
     }
 }
