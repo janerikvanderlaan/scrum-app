@@ -18,7 +18,8 @@ public struct FieldInfo: Equatable, Sendable {
     }
 }
 
-/// Decides which fields the coach looks at. By default: story fields in Jira only.
+/// Decides which fields the coach looks at: text fields on Jira pages (or in every app in
+/// test mode). Which rule applies to a field is decided by CoachRules.
 /// Password and search fields are never read.
 public enum CoachScope {
     public static let textRoles: Set<String> = ["AXTextField", "AXTextArea", "AXComboBox"]
@@ -60,7 +61,6 @@ public enum CoachScope {
     /// anyApp is the test mode from the menu: coach every text field in every app.
     public static func shouldCoach(_ field: FieldInfo, anyApp: Bool) -> Bool {
         guard isReadableTextField(field) else { return false }
-        if anyApp { return true }
-        return isJiraPage(field.pageURL) && isStoryField(label: field.label)
+        return anyApp || isJiraPage(field.pageURL)
     }
 }

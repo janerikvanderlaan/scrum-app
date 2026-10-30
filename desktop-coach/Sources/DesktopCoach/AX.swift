@@ -9,6 +9,8 @@ struct FieldSnapshot {
     let text: String
     /// Field position in Accessibility coordinates (origin top-left of the main screen).
     let frame: CGRect?
+    /// The text fields of the dialog the field is in (such as Jira's Start Sprint dialog), else empty.
+    let form: [FormField]
 }
 
 /// Thin helpers around the macOS Accessibility (AXUIElement) API.
@@ -64,6 +66,50 @@ enum AX {
         return parts.joined(separator: " · ")
     }
 
+    static func children(of element: AXUIElement) -> [AXUIElement] {
+        guard let value = attribute(element, kAXChildrenAttribute) as? [AnyObject] else { return [] }
+        return value.compactMap { child in
+            CFGetTypeID(child) == AXUIElementGetTypeID() ? (child as! AXUIElement) : nil
+        }
+    }
+
+    private static let dialogSubroles: Set<String> = ["AXApplicationDialog", "AXDialog", "AXSystemDialog"]
+
+    /// The nearest dialog around the element (a web dialog in Safari, or a sheet), if any.
+    static func dialog(containing element: AXUIElement) -> AXUIElement? {
+        var current = self.element(element, kAXParentAttribute)
+        for _ in 0..<40 {
+            guard let el = current else { return nil }
+            let role = string(el, kAXRoleAttribute)
+            if role == "AXSheet" || string(el, kAXSubroleAttribute).map(dialogSubroles.contains) == true { return el }
+            if role == "AXWebArea" || role == "AXWindow" { return nil }
+            current = self.element(el, kAXParentAttribute)
+        }
+        return nil
+    }
+
+    /// The readable text fields inside a dialog, with their labels and written text.
+    static func formFields(in dialog: AXUIElement) -> [FormField] {
+        var fields: [FormField] = []
+        var queue = [dialog]
+        var visited = 0
+        while !queue.isEmpty, visited < 400 {
+            let el = queue.removeFirst()
+            visited += 1
+            if let role = string(el, kAXRoleAttribute), CoachScope.textRoles.contains(role) {
+                let subrole = string(el, kAXSubroleAttribute)
+                if subrole.map(CoachScope.skippedSubroles.contains) != true {
+                    let value = string(el, kAXValueAttribute) ?? ""
+                    let text = CoachScope.writtenText(value, placeholder: string(el, kAXPlaceholderValueAttribute))
+                    fields.append(FormField(label: label(of: el), text: text))
+                }
+                continue
+            }
+            queue.append(contentsOf: children(of: el))
+        }
+        return fields
+    }
+
     static func frame(of element: AXUIElement) -> CGRect? {
         guard let position = attribute(element, kAXPositionAttribute), CFGetTypeID(position) == AXValueGetTypeID(),
               let size = attribute(element, kAXSizeAttribute), CFGetTypeID(size) == AXValueGetTypeID() else { return nil }
@@ -88,6 +134,7 @@ enum AX {
         // Never read the value of a password or search field.
         let value = CoachScope.isReadableTextField(info) ? (string(element, kAXValueAttribute) ?? "") : ""
         let text = CoachScope.writtenText(value, placeholder: string(element, kAXPlaceholderValueAttribute))
-        return FieldSnapshot(info: info, text: text, frame: frame(of: element))
+        let form = dialog(containing: element).map(formFields(in:)) ?? []
+        return FieldSnapshot(info: info, text: text, frame: frame(of: element), form: form)
     }
 }

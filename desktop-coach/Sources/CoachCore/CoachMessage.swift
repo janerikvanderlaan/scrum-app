@@ -26,10 +26,14 @@ public struct CoachMessage: Equatable, Sendable {
 /// A rule finding: what was noticed, why it matters, and one next step.
 public struct Hint: Equatable, Sendable {
     public let ruleID: String
+    /// What this finding is about (the text, the estimate, the Sprint), so it isn't repeated.
+    public let key: String
     public let what: String
     public let why: String
     public let how: String
     public let source: String
+
+    public var dedupeKey: String { "\(ruleID)|\(key)" }
 
     public var message: CoachMessage {
         CoachMessage(
@@ -55,11 +59,15 @@ public enum CoachMessages {
         )
     }
 
+    public static func fine(_ text: String) -> CoachMessage {
+        CoachMessage(title: "Looks good", sections: [.init(heading: nil, text: text)], buttonTitle: "Thanks")
+    }
+
     public static let nothingToCheck = CoachMessage(
         title: "Nothing to check here",
         sections: [.init(
             heading: nil,
-            text: "I only look at story fields in Jira (such as Summary or Description). Click into one and ask again, or switch on \"Coach in every app\" in the menu to try it anywhere."
+            text: "In Jira I look at story fields (such as Summary or Description), story points and the Sprint goal. Click into one of those and ask again, or switch on \"Coach in every app\" in the menu to try it anywhere."
         )],
         buttonTitle: "OK"
     )

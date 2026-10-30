@@ -48,6 +48,7 @@ public enum UserStoryRule {
         }
         return Hint(
             ruleID: ruleID,
+            key: trimmed,
             what: what,
             why: "Your team agreed to write backlog items as user stories, so everyone can see who an item helps and why it matters. That makes it easier to order the backlog and to check the result in the Sprint Review.",
             how: "Try this shape: As a <who> I want to <what> so that <why>. For example: \"As a team member I want to see my open items so that I know what to pick up next.\"",

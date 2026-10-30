@@ -1,8 +1,13 @@
 # Desktop coach (Mac accessibility spike)
 
 A small macOS menu bar app that watches which field you're typing in and, when a
-rule from the team's rule set isn't met, shows a friendly tip. First rule:
-**TEAM-02**, a backlog item is written as "As a … I want to … so that …".
+rule from the team's rule set isn't met, shows a friendly tip. Rules so far:
+
+| Rule | Field in Jira | Tip when |
+|---|---|---|
+| **TEAM-02** | Summary, Description | the text isn't written as "As a … I want to … so that …" |
+| **SG-200** | Story point estimate | the estimate is above the team's average velocity (set it in the menu, default 10) |
+| **SG-150** | Start Sprint dialog | the Sprint goal field is empty |
 
 This is a spike: it answers "can a local coach see the field we're in (Jira in
 Safari) without screenshots?" It is not part of the scrum-app web app.
@@ -13,8 +18,8 @@ Safari) without screenshots?" It is not part of the scrum-app web app.
   and, in Safari, the page address. No screenshots, no screen recording, nothing
   saved to disk, nothing sent anywhere.
 - Never reads password or search fields.
-- Coaches only story fields (Summary, Description, Title) on Jira pages
-  (`*.atlassian.net` or a host with "jira" in it), unless you switch on test mode.
+- Coaches only the fields above on Jira pages (`*.atlassian.net` or a host with
+  "jira" in it), unless you switch on test mode.
 - Explains afterwards: the tip appears when you leave the field, never while typing.
   A tip you've closed isn't shown again for the same text.
 - Helps when asked: press **Control-Option-C** in any field, or use the menu.
@@ -73,9 +78,15 @@ command you type in the **Terminal** app (find it with Spotlight, ⌘-Space, "Te
    Control-Option-C: it says the story looks good.
 2. **In Jira in Safari**: switch test mode off. Create an issue and type a summary
    that isn't a user story, then move to the next field.
-3. **If nothing happens**: click in the field and choose **Show what the coach
-   sees** from the menu. It shows the app, page, field type, label and text the
-   coach read. A screenshot of that window tells us what Jira exposes, which is
+3. **Story points**: choose **Average velocity** in the coach menu and check the
+   number (10 by default). Give a story an estimate of 13 and click elsewhere.
+4. **Sprint Goal**: in the backlog, click **Start sprint** (Sprint starten), leave
+   the Sprint goal empty and press Tab to move through the fields. If you click
+   Start straight away the dialog closes before the coach can look; then try
+   Control-Option-C while you're in the dialog.
+5. **If nothing happens**: click in the field and choose **Show what the coach
+   sees** from the menu. It shows the app, page, field type, label, text and the
+   other fields of the dialog the coach read. A screenshot of that window tells us what Jira exposes, which is
    exactly what this spike is meant to find out.
 
 ## Architecture
