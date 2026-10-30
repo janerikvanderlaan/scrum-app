@@ -7,7 +7,7 @@ import CoachCore
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusItem: NSStatusItem!
     private var anyAppItem: NSMenuItem!
-    private let watcher = FocusWatcher()
+    private let watcher: FieldSource = FocusWatcher()
     private let panel = HintPanel()
     private var anyAppMode = false
     private var started = false
@@ -18,7 +18,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         setUpMenu()
         HotKey.register { [weak self] in self?.checkNow() }
-        watcher.onFieldLeft = { [weak self] field in self?.evaluate(field, askedByUser: false) }
+        // Only what the person wrote or changed: tabbing through existing items stays quiet.
+        watcher.onFieldLeft = { [weak self] field, changed in
+            if changed { self?.evaluate(field, askedByUser: false) }
+        }
 
         let prompt = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
         if AXIsProcessTrustedWithOptions(prompt) {
@@ -90,8 +93,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func currentField() -> FieldSnapshot? {
-        guard let element = watcher.current ?? AX.focusedElementSystemWide() else { return nil }
-        return AX.snapshot(of: element)
+        watcher.currentField()
     }
 
     @objc private func checkNow() {

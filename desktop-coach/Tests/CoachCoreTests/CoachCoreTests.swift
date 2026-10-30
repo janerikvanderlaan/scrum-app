@@ -79,6 +79,22 @@ final class CoachScopeTests: XCTestCase {
         XCTAssertFalse(CoachScope.shouldCoach(field(subrole: "AXSearchField"), anyApp: true))
     }
 
+    func testIgnoresJiraEditorPrompt() {
+        let prompt = "Typ /ai om het aan Rovo te vragen of @ om iemand te vermelden en op de hoogte te brengen."
+        XCTAssertEqual(CoachScope.writtenText(prompt, placeholder: nil), "")
+        XCTAssertEqual(CoachScope.writtenText("Type /ai to ask Rovo", placeholder: nil), "")
+        XCTAssertNil(UserStoryRule.check(CoachScope.writtenText(prompt, placeholder: nil)))
+    }
+
+    func testIgnoresPlaceholderShownAsValue() {
+        XCTAssertEqual(CoachScope.writtenText("Omschrijf wat er moet gebeuren", placeholder: "Omschrijf wat er moet gebeuren"), "")
+    }
+
+    func testKeepsWhatThePersonWrote() {
+        XCTAssertEqual(CoachScope.writtenText("Fix login bug", placeholder: "Omschrijf wat er moet gebeuren"), "Fix login bug")
+        XCTAssertEqual(CoachScope.writtenText("Fix login bug", placeholder: nil), "Fix login bug")
+    }
+
     func testTestModeCoachesAnyTextField() {
         XCTAssertTrue(CoachScope.shouldCoach(field(url: nil, label: ""), anyApp: true))
     }

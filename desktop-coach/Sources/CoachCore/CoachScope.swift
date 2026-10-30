@@ -41,6 +41,22 @@ public enum CoachScope {
         return true
     }
 
+    /// Prompts some web editors expose as the field's value while it is still empty
+    /// (Jira's description editor: "Typ /ai om het aan Rovo te vragen …").
+    private static let editorPrompts = ["typ /ai", "type /ai"]
+
+    /// The text the person wrote: empty when the field only shows its placeholder or an editor prompt.
+    public static func writtenText(_ value: String, placeholder: String?) -> String {
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let placeholder, !placeholder.isEmpty,
+           trimmed == placeholder.trimmingCharacters(in: .whitespacesAndNewlines) {
+            return ""
+        }
+        let lower = trimmed.lowercased()
+        if editorPrompts.contains(where: { lower.hasPrefix($0) }) { return "" }
+        return value
+    }
+
     /// anyApp is the test mode from the menu: coach every text field in every app.
     public static func shouldCoach(_ field: FieldInfo, anyApp: Bool) -> Bool {
         guard isReadableTextField(field) else { return false }

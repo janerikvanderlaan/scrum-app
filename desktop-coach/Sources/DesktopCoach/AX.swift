@@ -86,7 +86,8 @@ enum AX {
             label: label(of: element)
         )
         // Never read the value of a password or search field.
-        let text = CoachScope.isReadableTextField(info) ? (string(element, kAXValueAttribute) ?? "") : ""
+        let value = CoachScope.isReadableTextField(info) ? (string(element, kAXValueAttribute) ?? "") : ""
+        let text = CoachScope.writtenText(value, placeholder: string(element, kAXPlaceholderValueAttribute))
         return FieldSnapshot(info: info, text: text, frame: frame(of: element))
     }
 }
