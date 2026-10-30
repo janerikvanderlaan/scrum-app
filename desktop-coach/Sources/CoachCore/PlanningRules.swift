@@ -67,15 +67,19 @@ public enum SprintGoalRule {
         form.first { isGoalField(label: $0.label) }
     }
 
+    /// One finding per Sprint: the Sprint name from the dialog.
+    public static func key(form: [FormField]) -> String {
+        form.first { isNameField(label: $0.label) }?.text ?? ""
+    }
+
     /// nil when the form has no Sprint goal field or the goal is filled in.
     public static func check(form: [FormField]) -> Hint? {
         guard let goal = goalField(in: form),
               CoachScope.writtenText(goal.text, placeholder: nil).trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         else { return nil }
-        let sprintName = form.first { isNameField(label: $0.label) }?.text ?? ""
         return Hint(
             ruleID: ruleID,
-            key: sprintName,
+            key: key(form: form),
             what: "This Sprint doesn't have a Sprint Goal yet.",
             why: "The Sprint Goal gives the Developers one shared focus for the Sprint. When work turns out different than planned, it helps the team decide together what matters most.",
             how: "Before you start the Sprint, write one sentence in the Sprint goal field on what this Sprint achieves and why that's valuable. For example: \"Customers can pay with iDEAL, so fewer orders are abandoned.\"",
@@ -89,7 +93,9 @@ public enum CoachOutcome: Equatable, Sendable {
     /// No rule looks at this field.
     case notApplicable
     /// A rule looked and everything is fine; the message is shown only when the person asked.
-    case fine(CoachMessage)
+    /// `key` is the dedupeKey a hint about the same thing would have, so a later
+    /// regression (a goal filled in, then deleted) is explained again.
+    case fine(CoachMessage, key: String)
     case hint(Hint)
 }
 
@@ -106,24 +112,32 @@ public struct CoachSettings: Equatable, Sendable {
 public enum CoachRules {
     /// `changed` is false when the person only passed through the field without editing it;
     /// text rules stay quiet then, the Sprint Goal check doesn't (an empty goal is never typed).
+    /// `nextLabel` is the label of the field that got the focus: moving into the Sprint goal
+    /// field means the person is about to fill it in, so the coach waits.
     /// `anyApp` is the test mode: the user story rule applies to every text field.
     public static func check(field: FieldInfo, text: String, form: [FormField], changed: Bool,
-                             settings: CoachSettings, anyApp: Bool = false) -> CoachOutcome {
+                             settings: CoachSettings, nextLabel: String? = nil, anyApp: Bool = false) -> CoachOutcome {
         if SprintGoalRule.goalField(in: form) != nil {
-            if let hint = SprintGoalRule.check(form: form) { return .hint(hint) }
-            return .fine(CoachMessages.fine("This Sprint has a Sprint Goal. Nice work."))
+            if let hint = SprintGoalRule.check(form: form) {
+                if let nextLabel, SprintGoalRule.isGoalField(label: nextLabel) { return .notApplicable }
+                return .hint(hint)
+            }
+            return .fine(CoachMessages.fine("This Sprint has a Sprint Goal. Nice work."),
+                         key: "\(SprintGoalRule.ruleID)|\(SprintGoalRule.key(form: form))")
         }
         if StoryPointsRule.appliesTo(label: field.label) {
             guard StoryPointsRule.points(in: text) != nil else { return .notApplicable }
             if changed, let hint = StoryPointsRule.check(text, averageVelocity: settings.averageVelocity) {
                 return .hint(hint)
             }
-            return .fine(CoachMessages.fine("This estimate fits within the team's average velocity of \(settings.averageVelocity) points."))
+            return .fine(CoachMessages.fine("This estimate fits within the team's average velocity of \(settings.averageVelocity) points."),
+                         key: "\(StoryPointsRule.ruleID)|\(text)")
         }
         if anyApp || CoachScope.isStoryField(label: field.label) {
             guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return .notApplicable }
             if changed, let hint = UserStoryRule.check(text) { return .hint(hint) }
-            return .fine(CoachMessages.allGood(fieldLabel: shortLabel(field.label)))
+            return .fine(CoachMessages.allGood(fieldLabel: shortLabel(field.label)),
+                         key: "\(UserStoryRule.ruleID)|\(text.trimmingCharacters(in: .whitespacesAndNewlines))")
         }
         return .notApplicable
     }
