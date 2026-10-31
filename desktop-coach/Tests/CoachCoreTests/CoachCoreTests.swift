@@ -363,3 +363,49 @@ final class ProbeFormatTests: XCTestCase {
         XCTAssertEqual(ProbeFormat.line(at: date, tag: "key", "Tab"), "13:05:07.250 key     Tab")
     }
 }
+
+final class SprintGateTests: XCTestCase {
+    private let emptyGoal = [FormField(label: "Sprintnaam", text: "CT Sprint 4"), FormField(label: "Sprintdoel", text: "")]
+    private let eight = CoachSettings(averageVelocity: 8)
+
+    func testEmptyGoalHoldsTheStartAndTheForecastIsExplained() {
+        // Round 3: SG-150 blocks the start; TEAM-03 still explains afterwards.
+        let hints = CoachRules.sprintStart(form: emptyGoal, sprintTotal: 27, settings: eight)
+        let gate = CoachRules.gate(hints, overridden: [])
+        XCTAssertEqual(gate.hold.map(\.ruleID), ["SG-150"])
+        XCTAssertEqual(gate.explain.map(\.ruleID), ["TEAM-03"])
+    }
+
+    func testAnOverrideLetsTheStartThroughOnce() {
+        let hints = CoachRules.sprintStart(form: emptyGoal, sprintTotal: 27, settings: eight)
+        let gate = CoachRules.gate(hints, overridden: ["SG-150|CT Sprint 4"])
+        XCTAssertEqual(gate.hold, [])
+        XCTAssertEqual(gate.explain.map(\.ruleID), ["TEAM-03"])
+        // The override is for this Sprint only.
+        let other = [FormField(label: "Sprintnaam", text: "CT Sprint 5"), FormField(label: "Sprintdoel", text: "")]
+        let next = CoachRules.gate(CoachRules.sprintStart(form: other, sprintTotal: nil, settings: eight), overridden: ["SG-150|CT Sprint 4"])
+        XCTAssertEqual(next.hold.map(\.ruleID), ["SG-150"])
+    }
+
+    func testAGoalLetsTheStartThrough() {
+        let filled = [FormField(label: "Sprintnaam", text: "CT Sprint 4"), FormField(label: "Sprintdoel", text: "Pay with iDEAL")]
+        XCTAssertEqual(CoachRules.gate(CoachRules.sprintStart(form: filled, sprintTotal: 6, settings: eight), overridden: []).hold, [])
+    }
+
+    func testOnlyTheSprintGoalBlocksForNow() {
+        XCTAssertEqual(CoachRules.mode(of: "SG-150"), .blockWithOverride)
+        for id in ["SG-200", "TEAM-02", "TEAM-03"] { XCTAssertEqual(CoachRules.mode(of: id), .explainAfterwards, id) }
+    }
+
+    func testHeldMessageIsFriendlyAndOffersAWayOn() throws {
+        let hint = try XCTUnwrap(SprintGoalRule.check(form: emptyGoal))
+        let message = try XCTUnwrap(CoachMessages.held([hint]))
+        XCTAssertEqual(message.secondaryButtonTitle, "Start anyway…")
+        let text = message.sections.map(\.text).joined(separator: " ").lowercased()
+        for blame in ["you forgot", "wrong", "error", "not allowed", "denied"] {
+            XCTAssertFalse(text.contains(blame), blame)
+        }
+        XCTAssertTrue(text.contains("reason"))
+        XCTAssertNil(CoachMessages.held([]))
+    }
+}

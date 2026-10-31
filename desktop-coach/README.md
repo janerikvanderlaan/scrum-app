@@ -7,7 +7,7 @@ rule from the team's rule set isn't met, shows a friendly tip. Rules so far:
 |---|---|---|
 | **TEAM-02** | Summary, Description | the text isn't written as "As a … I want to … so that …" |
 | **SG-200** | Story point estimate | the estimate is above the team's average velocity (set it in the menu, default 10) |
-| **SG-150** | Start Sprint dialog | you click Start (or press Return) while the Sprint goal field is empty |
+| **SG-150** | Start Sprint dialog | you click Start (or press Return) while the Sprint goal field is empty. This rule **blocks**: the Sprint doesn't start until you add a goal, or choose Start anyway and give a reason |
 | **TEAM-03** | Start Sprint dialog | you click Start while the Sprint's total (read from its backlog header, "Nog te doen: 22 van 27 (storypoints)" or "Schatting: 10 van 10") is above the average velocity |
 
 For now the average velocity is the coach's own setting. Reading Jira's velocity (and the
@@ -29,7 +29,11 @@ Safari) without screenshots?" It is not part of the scrum-app web app.
   A tip closes when you click Thanks or move on to another field, and isn't shown
   again for the same text.
 - Helps when asked: press **Control-Option-C** in any field, or use the menu.
-- Only advises. It never types, clicks or changes anything in Jira.
+- Only advises. It never types, clicks or changes anything in Jira. A rule set to
+  *block with override* (only SG-150 for now) can hold back your own click on Start;
+  you can always carry on with **Start anyway** and a short reason. Reasons are
+  kept on this Mac only, in `~/Library/Application Support/DesktopCoach/overrides.log`
+  (menu: **Show override log**), for the team's Retrospective.
 
 ## Run it on your Mac
 
@@ -88,9 +92,10 @@ command you type in the **Terminal** app (find it with Spotlight, ⌘-Space, "Te
    number (10 by default). Give a story an estimate of 13 and click elsewhere.
 4. **Sprint Goal and forecast**: in the backlog, click **Start sprint** (Sprint
    starten). Moving between the dialog's fields stays quiet. Leave the Sprint goal
-   empty and click **Start** (Starten): the Sprint starts and the coach explains
-   afterwards, also about a forecast above the average velocity. Control-Option-C
-   in the dialog checks it before you start.
+   empty and click **Start** (Starten): the Sprint doesn't start and the coach
+   explains why. Add a goal and click Start again, or choose **Start anyway**, type
+   a reason and click Start again. A forecast above the average velocity is
+   explained after the Sprint has started.
 5. **If nothing happens**: click in the field and choose **Show what the coach
    sees** from the menu. It shows the app, page, field type, label, text and the
    other fields of the dialog the coach read. A screenshot of that window tells us what Jira exposes, which is

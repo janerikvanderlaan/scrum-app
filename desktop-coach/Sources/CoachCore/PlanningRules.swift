@@ -143,6 +143,13 @@ public enum SprintTotal {
     }
 }
 
+/// How a rule acts when it finds something. Most rules explain afterwards; a blocking rule
+/// holds the step back until the person fixes it or overrides it with a reason.
+public enum RuleMode: Equatable, Sendable {
+    case explainAfterwards
+    case blockWithOverride
+}
+
 /// What the coach concluded about one field.
 public enum CoachOutcome: Equatable, Sendable {
     /// No rule looks at this field.
@@ -218,6 +225,20 @@ public enum CoachRules {
             message += " Its forecast of \(shown) points fits within the average velocity of \(settings.averageVelocity)."
         }
         return CoachMessages.fine(message + " Nice work.")
+    }
+
+    /// Per rule; SG-150 blocks the Sprint start (Jan Erik, 2026-10-31). Later this becomes a team setting.
+    public static func mode(of ruleID: String) -> RuleMode {
+        ruleID == SprintGoalRule.ruleID ? .blockWithOverride : .explainAfterwards
+    }
+
+    /// Splits Sprint start findings: the ones that hold the start back, and the ones explained
+    /// afterwards. A finding the person already overrode (by dedupeKey) no longer holds it back
+    /// and isn't explained again.
+    public static func gate(_ hints: [Hint], overridden: Set<String>) -> (hold: [Hint], explain: [Hint]) {
+        let open = hints.filter { !overridden.contains($0.dedupeKey) }
+        return (open.filter { mode(of: $0.ruleID) == .blockWithOverride },
+                open.filter { mode(of: $0.ruleID) == .explainAfterwards })
     }
 
     /// The button that starts the Sprint in Jira's Start Sprint dialog.

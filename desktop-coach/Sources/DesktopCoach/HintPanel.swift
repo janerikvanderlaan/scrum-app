@@ -6,13 +6,17 @@ import CoachCore
 final class HintPanel: NSObject, NSWindowDelegate {
     private var panel: NSPanel?
     private var onClose: (() -> Void)?
+    private var onSecondary: (() -> Void)?
     /// When the current message appeared; nil when nothing is shown.
     private(set) var shownAt: Date?
     private let width: CGFloat = 360
 
-    func show(_ message: CoachMessage, near fieldFrame: CGRect?, onClose: (() -> Void)? = nil) {
+    /// `onSecondary` runs when the message's second button (such as "Start anyway…") is pressed.
+    func show(_ message: CoachMessage, near fieldFrame: CGRect?, onClose: (() -> Void)? = nil,
+              onSecondary: (() -> Void)? = nil) {
         close()
         self.onClose = onClose
+        self.onSecondary = onSecondary
 
         let stack = NSStackView()
         stack.orientation = .vertical
@@ -38,7 +42,16 @@ final class HintPanel: NSObject, NSWindowDelegate {
         }
         let button = NSButton(title: message.buttonTitle, target: self, action: #selector(buttonPressed))
         button.bezelStyle = .rounded
-        stack.addArrangedSubview(button)
+        if let secondary = message.secondaryButtonTitle {
+            let other = NSButton(title: secondary, target: self, action: #selector(secondaryPressed))
+            other.bezelStyle = .rounded
+            let row = NSStackView(views: [button, other])
+            row.orientation = .horizontal
+            row.spacing = 8
+            stack.addArrangedSubview(row)
+        } else {
+            stack.addArrangedSubview(button)
+        }
 
         let panel = NSPanel(
             contentRect: NSRect(x: 0, y: 0, width: width, height: 100),
@@ -79,6 +92,12 @@ final class HintPanel: NSObject, NSWindowDelegate {
 
     @objc private func buttonPressed() { close() }
 
+    @objc private func secondaryPressed() {
+        let action = onSecondary
+        close()
+        action?()
+    }
+
     func windowWillClose(_ notification: Notification) {
         panel = nil
         finish()
@@ -86,6 +105,7 @@ final class HintPanel: NSObject, NSWindowDelegate {
 
     private func finish() {
         shownAt = nil
+        onSecondary = nil
         let callback = onClose
         onClose = nil
         callback?()

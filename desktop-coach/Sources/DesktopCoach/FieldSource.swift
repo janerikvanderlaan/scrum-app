@@ -12,7 +12,9 @@ protocol FieldSource: AnyObject {
     var onFieldLeft: ((FieldSnapshot, Bool) -> Void)? { get set }
     /// The person clicked a button (such as Start in Jira's Start Sprint dialog) or pressed
     /// Return in a dialog, read just before it takes effect, while the dialog is still there.
-    var onButtonPressed: ((ButtonPress) -> Void)? { get set }
+    /// Return true to hold the press back (only for a rule set to block with override);
+    /// it is called while the press waits, so it must decide quickly.
+    var onButtonPressed: ((ButtonPress) -> Bool)? { get set }
     /// The focus moved to another element (any element, not only text fields).
     var onFocusMoved: (() -> Void)? { get set }
     func start()
@@ -29,7 +31,8 @@ struct ButtonPress {
     let pageURL: String?
     /// The text fields of the button's dialog, else empty.
     let form: [FormField]
-    /// In a Sprint dialog: the Sprint's total estimate from the backlog header on the page.
-    let sprintTotal: Double?
+    /// In a Sprint dialog: reads the Sprint's total estimate from the backlog header on the
+    /// page. It walks the whole page, so call it after the press was decided, not while it waits.
+    let sprintTotal: () -> Double?
     let frame: CGRect?
 }

@@ -12,7 +12,7 @@ import CoachCore
 final class FocusWatcher: NSObject, FieldSource {
     /// The field that lost the focus, and whether its text changed.
     var onFieldLeft: ((FieldSnapshot, Bool) -> Void)?
-    var onButtonPressed: ((ButtonPress) -> Void)?
+    var onButtonPressed: ((ButtonPress) -> Bool)?
     var onFocusMoved: (() -> Void)?
 
     /// The element that has the focus in the watched app right now.
@@ -30,6 +30,10 @@ final class FocusWatcher: NSObject, FieldSource {
     private var observer: AXObserver?
     private var appElement: AXUIElement?
     private var monitors: [Any] = []
+    /// Sees clicks and Return before the app does, so a blocking rule can hold a press back.
+    private var tap: CFMachPort?
+    /// The mouse-down was held back, so its mouse-up is held back too.
+    private var holdMouseUp = false
     private var pollTimer: Timer?
     /// The page texts around the "Start sprint" button on the backlog, read when it was clicked:
     /// Jira's Start Sprint dialog may hide the rest of the page while it is open.
@@ -41,15 +45,21 @@ final class FocusWatcher: NSObject, FieldSource {
             name: NSWorkspace.didActivateApplicationNotification, object: nil
         )
         if let app = NSWorkspace.shared.frontmostApplication { observe(app) }
-        // Only the element under a click is looked at, to recognise buttons such as Start;
-        // clicks are not recorded.
-        if let monitor = NSEvent.addGlobalMonitorForEvents(matching: .leftMouseDown, handler: { [weak self] _ in
-            self?.mouseDown(at: NSEvent.mouseLocation)
-        }) { monitors.append(monitor) }
-        // Only Return is looked at (it submits a dialog, like clicking Start); typing is not recorded.
-        if let monitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown, handler: { [weak self] event in
-            if event.keyCode == 36 || event.keyCode == 76 { self?.returnPressed() }
-        }) { monitors.append(monitor) }
+        // Only the element under a click is looked at, to recognise buttons such as Start, and only
+        // Return among the keys (it submits a dialog); nothing is recorded.
+        let tapped = installTap()
+        // Shown in Terminal, so we can tell from there whether blocking rules can work.
+        print(tapped ? "Coach: can hold back a click on Start (blocking rules on)."
+                     : "Coach: can't hold back clicks (event tap refused), blocking rules only explain.")
+        if !tapped {
+            // Without the tap the coach can still explain afterwards, but not hold a step back.
+            if let monitor = NSEvent.addGlobalMonitorForEvents(matching: .leftMouseDown, handler: { [weak self] event in
+                _ = self?.mouseDown(at: event.cgEvent?.location ?? .zero)
+            }) { monitors.append(monitor) }
+            if let monitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown, handler: { [weak self] event in
+                if event.keyCode == 36 || event.keyCode == 76 { _ = self?.returnPressed() }
+            }) { monitors.append(monitor) }
+        }
         pollTimer = Timer.scheduledTimer(withTimeInterval: 0.25, repeats: true) { [weak self] _ in
             self?.poll()
         }
@@ -149,38 +159,91 @@ final class FocusWatcher: NSObject, FieldSource {
 
     // MARK: Submitting a dialog
 
+    /// An active event tap: clicks and keys pass through it before they reach the app.
+    private func installTap() -> Bool {
+        let mask: CGEventMask = (1 << CGEventType.leftMouseDown.rawValue)
+            | (1 << CGEventType.leftMouseUp.rawValue)
+            | (1 << CGEventType.keyDown.rawValue)
+        let callback: CGEventTapCallBack = { _, type, event, refcon in
+            guard let refcon else { return Unmanaged.passUnretained(event) }
+            let watcher = Unmanaged<FocusWatcher>.fromOpaque(refcon).takeUnretainedValue()
+            return watcher.holds(type, event) ? nil : Unmanaged.passUnretained(event)
+        }
+        guard let tap = CGEvent.tapCreate(tap: .cgSessionEventTap, place: .headInsertEventTap, options: .defaultTap,
+                                          eventsOfInterest: mask, callback: callback,
+                                          userInfo: Unmanaged.passUnretained(self).toOpaque()) else { return false }
+        let source = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, tap, 0)
+        CFRunLoopAddSource(CFRunLoopGetMain(), source, .commonModes)
+        CGEvent.tapEnable(tap: tap, enable: true)
+        self.tap = tap
+        return true
+    }
+
+    /// Whether to hold this event back. Everything else passes straight through.
+    private func holds(_ type: CGEventType, _ event: CGEvent) -> Bool {
+        switch type {
+        case .tapDisabledByTimeout, .tapDisabledByUserInput:
+            // macOS switches a slow tap off; switch it on again.
+            print("Coach: macOS paused the click check (\(type == .tapDisabledByTimeout ? "too slow" : "user input")); switched it on again.")
+            if let tap { CGEvent.tapEnable(tap: tap, enable: true) }
+            return false
+        case .leftMouseDown:
+            // The coach's own windows (its tips, the reason dialog) are never held back.
+            holdMouseUp = !isCoachInFront() && mouseDown(at: event.location)
+            return holdMouseUp
+        case .leftMouseUp:
+            defer { holdMouseUp = false }
+            return holdMouseUp
+        case .keyDown:
+            let code = event.getIntegerValueField(.keyboardEventKeycode)
+            return (code == 36 || code == 76) && !isCoachInFront() && returnPressed()
+        default:
+            return false
+        }
+    }
+
+    private func isCoachInFront() -> Bool {
+        NSWorkspace.shared.frontmostApplication?.processIdentifier == getpid()
+    }
+
     /// Mouse-down comes before the click takes effect, so the dialog can still be read.
-    private func mouseDown(at cocoaPoint: NSPoint) {
-        // AppKit counts from the bottom-left of the main screen, Accessibility from the top-left.
-        guard let primary = NSScreen.screens.first else { return }
-        let point = CGPoint(x: cocoaPoint.x, y: primary.frame.height - cocoaPoint.y)
-        guard let button = AX.button(at: point) else { return }
+    /// `point` is in Accessibility (and Core Graphics) coordinates: top-left of the main screen.
+    private func mouseDown(at point: CGPoint) -> Bool {
+        guard let button = AX.button(at: point) else { return false }
         let dialog = AX.dialog(containing: button)
         if dialog == nil, CoachRules.isStartButton(label: AX.buttonLabel(of: button)) {
-            // "Start sprint" on the backlog opens the dialog: remember the Sprint totals shown now.
-            backlogTexts = AX.pageTexts(around: button)
+            // "Start sprint" on the backlog opens the dialog: remember the Sprint totals shown now,
+            // right after the click has gone through (reading the page takes a moment).
+            DispatchQueue.main.async { [weak self] in self?.backlogTexts = AX.pageTexts(around: button) }
         }
-        report(label: AX.buttonLabel(of: button), from: button, dialog: dialog)
+        let started = Date()
+        let held = report(label: AX.buttonLabel(of: button), from: button, dialog: dialog)
+        if dialog != nil {
+            print("Coach: button \"\(AX.buttonLabel(of: button))\" in a dialog, \(held ? "held back" : "let through") after \(Int(Date().timeIntervalSince(started) * 1000)) ms.")
+        }
+        return held
     }
 
     /// Return in a dialog's single-line field submits it, like clicking Start. In a text area it
     /// starts a new line and in a combo box it picks an option, so those are skipped.
-    private func returnPressed() {
+    private func returnPressed() -> Bool {
         guard let element = focusedNow() ?? current,
               !["AXTextArea", "AXComboBox"].contains(AX.string(element, kAXRoleAttribute) ?? ""),
-              let dialog = AX.dialog(containing: element) else { return }
-        report(label: ButtonPress.returnKey, from: element, dialog: dialog)
+              let dialog = AX.dialog(containing: element) else { return false }
+        return report(label: ButtonPress.returnKey, from: element, dialog: dialog)
     }
 
-    private func report(label: String, from element: AXUIElement, dialog: AXUIElement?) {
+    private func report(label: String, from element: AXUIElement, dialog: AXUIElement?) -> Bool {
         let form = dialog.map(AX.formFields(in:)) ?? []
-        var sprintTotal: Double?
-        if SprintGoalRule.goalField(in: form) != nil {
-            let name = SprintGoalRule.key(form: form)
-            sprintTotal = SprintTotal.find(in: AX.pageTexts(around: element), sprintName: name)
-                ?? SprintTotal.find(in: backlogTexts, sprintName: name)
+        // The page stays when the dialog closes, so the total can be read from it afterwards.
+        let page = AX.webArea(of: element)
+        let name = SprintGoalRule.key(form: form)
+        let sprintTotal: () -> Double? = { [weak self] in
+            guard SprintGoalRule.goalField(in: form) != nil else { return nil }
+            return page.flatMap { SprintTotal.find(in: AX.pageTexts(around: $0), sprintName: name) }
+                ?? SprintTotal.find(in: self?.backlogTexts ?? [], sprintName: name)
         }
-        onButtonPressed?(ButtonPress(label: label, pageURL: AX.pageURL(of: element),
-                                     form: form, sprintTotal: sprintTotal, frame: AX.frame(of: element)))
+        return onButtonPressed?(ButtonPress(label: label, pageURL: AX.pageURL(of: element),
+                                            form: form, sprintTotal: sprintTotal, frame: AX.frame(of: element))) ?? false
     }
 }
