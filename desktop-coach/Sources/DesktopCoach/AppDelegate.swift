@@ -15,6 +15,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var accessTimer: Timer?
     /// Findings the person already saw a hint for; not repeated this session.
     private var explained = Set<String>()
+    /// Blocking findings the person chose to carry on with, with a reason (dedupeKey).
+    private var overridden = Set<String>()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         setUpMenu()
@@ -32,7 +34,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             self.panel.close()
         }
         // Sprint Goal and forecast are checked when the person clicks Start in the Sprint dialog.
-        watcher.onButtonPressed = { [weak self] press in self?.buttonPressed(press) }
+        watcher.onButtonPressed = { [weak self] press in self?.buttonPressed(press) ?? false }
 
         let prompt = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
         if AXIsProcessTrustedWithOptions(prompt) {
@@ -62,13 +64,50 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         return CoachSettings(averageVelocity: stored > 0 ? stored : 10)
     }
 
-    private func buttonPressed(_ press: ButtonPress) {
+    /// Runs while the press waits: decides quickly whether a blocking rule holds it back;
+    /// everything else is explained after the press has gone through.
+    private func buttonPressed(_ press: ButtonPress) -> Bool {
         guard anyAppMode || CoachScope.isJiraPage(press.pageURL),
-              press.label == ButtonPress.returnKey || CoachRules.isStartButton(label: press.label) else { return }
-        let hints = CoachRules.sprintStart(form: press.form, sprintTotal: press.sprintTotal, settings: settings)
-        guard let message = CoachMessages.tips(hints) else { return }
-        // The click starts the Sprint, so the tip explains afterwards, as for every rule in mode explain.
-        panel.show(message, near: nil)
+              press.label == ButtonPress.returnKey || CoachRules.isStartButton(label: press.label),
+              SprintGoalRule.goalField(in: press.form) != nil else { return false }
+        // The blocking rule (SG-150) only needs the dialog, not the page, so this stays quick.
+        let quick = CoachRules.sprintStart(form: press.form, sprintTotal: nil, settings: settings)
+        let held = CoachRules.gate(quick, overridden: overridden).hold
+        if let message = CoachMessages.held(held) {
+            DispatchQueue.main.async { [weak self] in
+                self?.panel.show(message, near: press.frame, onSecondary: { self?.askReason(for: held) })
+            }
+            return true
+        }
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            let hints = CoachRules.sprintStart(form: press.form, sprintTotal: press.sprintTotal(), settings: self.settings)
+            // The Sprint has started, so these tips explain afterwards.
+            if let message = CoachMessages.tips(CoachRules.gate(hints, overridden: self.overridden).explain) {
+                self.panel.show(message, near: nil)
+            }
+        }
+        return false
+    }
+
+    /// Start anyway: the person stays in charge, and her reason is kept for the Retrospective.
+    private func askReason(for hints: [Hint]) {
+        let alert = NSAlert()
+        alert.messageText = "Start this Sprint anyway?"
+        alert.informativeText = "In a few words, why? Your reason stays on this Mac, in the override log, so the team can talk about it in the Retrospective."
+        let input = NSTextField(frame: NSRect(x: 0, y: 0, width: 300, height: 24))
+        input.placeholderString = "For example: goal agreed, we'll add it tomorrow"
+        alert.accessoryView = input
+        alert.addButton(withTitle: "Continue")
+        alert.addButton(withTitle: "Cancel")
+        NSApp.activate(ignoringOtherApps: true)
+        alert.window.initialFirstResponder = input
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+        let reason = input.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !reason.isEmpty else { return askReason(for: hints) }
+        for hint in hints { overridden.insert(hint.dedupeKey) }
+        OverrideLog.append(hints, reason: reason)
+        panel.show(CoachMessages.overrideNoted, near: nil)
     }
 
     private func evaluate(_ field: FieldSnapshot, changed: Bool, askedByUser: Bool) {
@@ -104,6 +143,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         anyAppItem.target = self
         velocityItem = menu.addItem(withTitle: velocityTitle(), action: #selector(setVelocity), keyEquivalent: "")
         velocityItem.target = self
+        menu.addItem(withTitle: "Show override log", action: #selector(showOverrideLog), keyEquivalent: "").target = self
         menu.addItem(.separator())
         menu.addItem(withTitle: "Quit Coach", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         statusItem.menu = menu
@@ -176,6 +216,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
               let value = Int(input.stringValue.trimmingCharacters(in: .whitespaces)), value > 0 else { return }
         UserDefaults.standard.set(value, forKey: "averageVelocity")
         velocityItem.title = velocityTitle()
+    }
+
+    @objc private func showOverrideLog() {
+        let url = OverrideLog.url
+        if FileManager.default.fileExists(atPath: url.path) {
+            NSWorkspace.shared.activateFileViewerSelecting([url])
+        } else {
+            panel.show(CoachMessage(title: "Override log", sections: [.init(heading: nil, text: "No overrides yet.")], buttonTitle: "OK"), near: nil)
+        }
     }
 
     @objc private func toggleAnyApp() {

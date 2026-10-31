@@ -15,11 +15,14 @@ public struct CoachMessage: Equatable, Sendable {
     public let title: String
     public let sections: [Section]
     public let buttonTitle: String
+    /// A second button, such as "Start anyway…" on a blocked step; nil for none.
+    public let secondaryButtonTitle: String?
 
-    public init(title: String, sections: [Section], buttonTitle: String = "Thanks") {
+    public init(title: String, sections: [Section], buttonTitle: String = "Thanks", secondaryButtonTitle: String? = nil) {
         self.title = title
         self.sections = sections
         self.buttonTitle = buttonTitle
+        self.secondaryButtonTitle = secondaryButtonTitle
     }
 }
 
@@ -74,6 +77,33 @@ public enum CoachMessages {
             buttonTitle: "Thanks"
         )
     }
+
+    /// A step the coach held back (a blocking rule): the same What / Why / How, and the
+    /// person stays in charge: she can fix it, or carry on and say why.
+    public static func held(_ hints: [Hint]) -> CoachMessage? {
+        guard !hints.isEmpty else { return nil }
+        let numbered = hints.count > 1
+        return CoachMessage(
+            title: "Before this Sprint starts",
+            sections: hints.enumerated().flatMap { index, hint in [
+                CoachMessage.Section(heading: numbered ? "\(index + 1). What I noticed" : "What I noticed", text: hint.what),
+                CoachMessage.Section(heading: "Why it helps", text: hint.why),
+                CoachMessage.Section(heading: "A next step", text: hint.how),
+                CoachMessage.Section(heading: nil, text: "\(hint.ruleID) · \(hint.source)"),
+            ] } + [
+                CoachMessage.Section(heading: nil, text: "I paused the start so you can have a look first. Your team decides: if you'd like to start anyway, choose Start anyway and add a short reason. The team can talk about it in the Retrospective."),
+            ],
+            buttonTitle: "I'll fix it",
+            secondaryButtonTitle: "Start anyway…"
+        )
+    }
+
+    /// After a reason was given: how to carry on.
+    public static let overrideNoted = CoachMessage(
+        title: "Noted",
+        sections: [.init(heading: nil, text: "Thanks, I noted your reason for the Retrospective. Click Start again to start the Sprint.")],
+        buttonTitle: "OK"
+    )
 
     public static func fine(_ text: String) -> CoachMessage {
         CoachMessage(title: "Looks good", sections: [.init(heading: nil, text: text)], buttonTitle: "Thanks")

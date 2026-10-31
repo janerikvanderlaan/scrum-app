@@ -121,6 +121,17 @@ enum AX {
     /// The visible texts of the web page around the element, in reading order, plus the
     /// descriptions of other elements: Jira shows a Sprint's status badges
     /// ("Nog te doen: 22 van 27 (storypoints)") as a description, not as text.
+    /// The web page (AXWebArea) the element is on, if any.
+    static func webArea(of element: AXUIElement) -> AXUIElement? {
+        var current: AXUIElement? = element
+        for _ in 0..<60 {
+            guard let el = current else { return nil }
+            if string(el, kAXRoleAttribute) == "AXWebArea" { return el }
+            current = self.element(el, kAXParentAttribute)
+        }
+        return nil
+    }
+
     static func pageTexts(around element: AXUIElement, limit: Int = 5000) -> [String] {
         var webArea: AXUIElement? = element
         while let el = webArea, string(el, kAXRoleAttribute) != "AXWebArea" {
