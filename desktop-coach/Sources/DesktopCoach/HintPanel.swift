@@ -6,6 +6,8 @@ import CoachCore
 final class HintPanel: NSObject, NSWindowDelegate {
     private var panel: NSPanel?
     private var onClose: (() -> Void)?
+    /// When the current message appeared; nil when nothing is shown.
+    private(set) var shownAt: Date?
     private let width: CGFloat = 360
 
     func show(_ message: CoachMessage, near fieldFrame: CGRect?, onClose: (() -> Void)? = nil) {
@@ -64,6 +66,7 @@ final class HintPanel: NSObject, NSWindowDelegate {
         panel.setFrameOrigin(origin(for: panel.frame.size, near: fieldFrame))
         panel.orderFrontRegardless()
         self.panel = panel
+        shownAt = Date()
     }
 
     func close() {
@@ -82,6 +85,7 @@ final class HintPanel: NSObject, NSWindowDelegate {
     }
 
     private func finish() {
+        shownAt = nil
         let callback = onClose
         onClose = nil
         callback?()

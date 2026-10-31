@@ -26,7 +26,8 @@ Safari) without screenshots?" It is not part of the scrum-app web app.
   "jira" in it), unless you switch on test mode.
 - Explains afterwards: a field tip appears when you leave the field, never while typing;
   the Sprint tips appear when you click Start in the Start Sprint dialog.
-  A tip you've closed isn't shown again for the same text.
+  A tip closes when you click Thanks or move on to another field, and isn't shown
+  again for the same text.
 - Helps when asked: press **Control-Option-C** in any field, or use the menu.
 - Only advises. It never types, clicks or changes anything in Jira.
 

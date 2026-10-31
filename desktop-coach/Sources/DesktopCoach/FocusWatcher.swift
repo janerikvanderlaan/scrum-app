@@ -13,6 +13,7 @@ final class FocusWatcher: NSObject, FieldSource {
     /// The field that lost the focus, and whether its text changed.
     var onFieldLeft: ((FieldSnapshot, Bool) -> Void)?
     var onButtonPressed: ((ButtonPress) -> Void)?
+    var onFocusMoved: (() -> Void)?
 
     /// The element that has the focus in the watched app right now.
     private(set) var current: AXUIElement? {
@@ -125,6 +126,7 @@ final class FocusWatcher: NSObject, FieldSource {
             if left, let snapshot = AX.snapshot(of: previous, context: false) ?? lastSnapshot {
                 onFieldLeft?(snapshot, snapshot.text != (textOnEntry ?? ""))
             }
+            if left { onFocusMoved?() }
         }
         current = element
     }

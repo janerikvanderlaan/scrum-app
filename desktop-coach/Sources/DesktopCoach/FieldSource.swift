@@ -13,6 +13,8 @@ protocol FieldSource: AnyObject {
     /// The person clicked a button (such as Start in Jira's Start Sprint dialog) or pressed
     /// Return in a dialog, read just before it takes effect, while the dialog is still there.
     var onButtonPressed: ((ButtonPress) -> Void)? { get set }
+    /// The focus moved to another element (any element, not only text fields).
+    var onFocusMoved: (() -> Void)? { get set }
     func start()
     /// The field that has the focus right now, for "coach me on this field".
     func currentField() -> FieldSnapshot?

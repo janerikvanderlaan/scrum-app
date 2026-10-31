@@ -24,6 +24,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         watcher.onFieldLeft = { [weak self] field, changed in
             self?.evaluate(field, changed: changed, askedByUser: false)
         }
+        // Moving on to another field closes the tip: she has read it, or chose to carry on.
+        // The focus also moves while the tip appears (leaving the field, a dialog closing),
+        // so the first two seconds don't count.
+        watcher.onFocusMoved = { [weak self] in
+            guard let self, let shownAt = self.panel.shownAt, Date().timeIntervalSince(shownAt) > 2 else { return }
+            self.panel.close()
+        }
         // Sprint Goal and forecast are checked when the person clicks Start in the Sprint dialog.
         watcher.onButtonPressed = { [weak self] press in self?.buttonPressed(press) }
 
