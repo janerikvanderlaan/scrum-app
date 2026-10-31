@@ -7,8 +7,8 @@ rule from the team's rule set isn't met, shows a friendly tip. Rules so far:
 |---|---|---|
 | **TEAM-02** | Summary, Description | the text isn't written as "As a … I want to … so that …" |
 | **SG-200** | Story point estimate | the estimate is above the team's average velocity (set it in the menu, default 10) |
-| **SG-150** | Start Sprint dialog | the Sprint goal field is empty |
-| **TEAM-03** | Start Sprint dialog | the Sprint's total estimate (read from its backlog header, "Schatting: 10 van 10") is above the average velocity |
+| **SG-150** | Start Sprint dialog | you click Start (or press Return) while the Sprint goal field is empty |
+| **TEAM-03** | Start Sprint dialog | you click Start while the Sprint's total (read from its backlog header, "Nog te doen: 22 van 27 (storypoints)" or "Schatting: 10 van 10") is above the average velocity |
 
 For now the average velocity is the coach's own setting. Reading Jira's velocity (and the
 Sprint total) straight from Jira with a read-only API token is planned for later.
@@ -24,8 +24,10 @@ Safari) without screenshots?" It is not part of the scrum-app web app.
 - Never reads password or search fields.
 - Coaches only the fields above on Jira pages (`*.atlassian.net` or a host with
   "jira" in it), unless you switch on test mode.
-- Explains afterwards: the tip appears when you leave the field, never while typing.
-  A tip you've closed isn't shown again for the same text.
+- Explains afterwards: a field tip appears when you leave the field, never while typing;
+  the Sprint tips appear when you click Start in the Start Sprint dialog.
+  A tip closes when you click Thanks or move on to another field, and isn't shown
+  again for the same text.
 - Helps when asked: press **Control-Option-C** in any field, or use the menu.
 - Only advises. It never types, clicks or changes anything in Jira.
 
@@ -84,14 +86,56 @@ command you type in the **Terminal** app (find it with Spotlight, ⌘-Space, "Te
    that isn't a user story, then move to the next field.
 3. **Story points**: choose **Average velocity** in the coach menu and check the
    number (10 by default). Give a story an estimate of 13 and click elsewhere.
-4. **Sprint Goal**: in the backlog, click **Start sprint** (Sprint starten), leave
-   the Sprint goal empty and press Tab to move through the fields. If you click
-   Start straight away the dialog closes before the coach can look; then try
-   Control-Option-C while you're in the dialog.
+4. **Sprint Goal and forecast**: in the backlog, click **Start sprint** (Sprint
+   starten). Moving between the dialog's fields stays quiet. Leave the Sprint goal
+   empty and click **Start** (Starten): the Sprint starts and the coach explains
+   afterwards, also about a forecast above the average velocity. Control-Option-C
+   in the dialog checks it before you start.
 5. **If nothing happens**: click in the field and choose **Show what the coach
    sees** from the menu. It shows the app, page, field type, label, text and the
    other fields of the dialog the coach read. A screenshot of that window tells us what Jira exposes, which is
    exactly what this spike is meant to find out.
+
+## Log what the screen reports (CoachProbe)
+
+The coach depends on what macOS and the app report: which element has the focus,
+when a value changes, when a dialog opens. Safari doesn't always report this the
+way we expect, so there's a separate small logger to see it for ourselves.
+
+1. In Terminal, in the `desktop-coach` folder, start it:
+
+   ```sh
+   swift run CoachProbe
+   ```
+
+   It uses the same Accessibility permission as the coach (granted to Terminal).
+   You can run it alongside the coach or on its own.
+2. Switch to Safari. The probe doesn't watch the Terminal window it writes to
+   (that would log its own lines in a loop), so nothing new appears until you
+   use another app. Use Jira as usual: click, tab, type, open the Start Sprint dialog, click Start.
+   Press **Control-Option-M** just before a step you want to look at; it writes
+   "marker 1", "marker 2" … into the log so we can find that moment.
+3. Press **Control-C** in Terminal to stop. The log is in the folder
+   `coach-probe-logs` in your home folder (Finder: Go > Home). Send me that file.
+
+Each line has the time (to the millisecond), a tag and the details:
+
+| Tag | What it means |
+|---|---|
+| `app` | another app came to the front |
+| `focus` | the app reported a new focused element (and, if different, what it says when asked) |
+| `value` | the app reported that an element's value changed |
+| `poll` | the probe looked itself (4 times a second) and found a focus or value change the app **didn't** report |
+| `gone` | the focused element was removed, for example an inline editor that closed |
+| `window` | a window, sheet or menu opened, closed or got the focus |
+| `click` | a mouse click, with the element under the pointer and the button it is in |
+| `key` | a key by its kind: Tab, Shift-Tab, Return, Escape, arrows or just "character" |
+| `mark` | your Control-Option-M marker |
+
+Privacy: it logs which kind of key you press, never which letter or digit. Field
+values are logged as a short preview (60 characters) so we can see for example an
+estimate change; start it with `swift run CoachProbe --no-text` to log only their
+length. Password and search fields are never read. The log stays on your Mac.
 
 ## Architecture
 

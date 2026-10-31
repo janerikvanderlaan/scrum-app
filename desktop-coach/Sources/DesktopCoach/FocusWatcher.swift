@@ -2,12 +2,18 @@ import AppKit
 import ApplicationServices
 import CoachCore
 
-/// Follows the keyboard focus in the frontmost app with an AXObserver.
-/// When the focus leaves a field (another field, or another app), it reports
-/// that field's final content, so the coach explains afterwards and never interrupts typing.
+/// Follows the keyboard focus in the frontmost app. When the focus leaves a field
+/// (another field, or another app), it reports that field's final content, so the
+/// coach explains afterwards and never interrupts typing.
+///
+/// CoachProbe showed (2026-10-31) that Safari sends no focus notification for most moves in
+/// Jira, and that the ones it sends name an empty window instead of the field. So the focus
+/// is followed by asking the app a few times a second; notifications only make it ask sooner.
 final class FocusWatcher: NSObject, FieldSource {
-    /// The field that lost the focus, whether its text changed, and the next field's label.
-    var onFieldLeft: ((FieldSnapshot, Bool, String?) -> Void)?
+    /// The field that lost the focus, and whether its text changed.
+    var onFieldLeft: ((FieldSnapshot, Bool) -> Void)?
+    var onButtonPressed: ((ButtonPress) -> Void)?
+    var onFocusMoved: (() -> Void)?
 
     /// The element that has the focus in the watched app right now.
     private(set) var current: AXUIElement? {
@@ -19,10 +25,15 @@ final class FocusWatcher: NSObject, FieldSource {
     /// The text the current field had when it got the focus.
     private var textOnEntry: String?
     /// The current field as last read. Jira's inline editors (such as story points) disappear
-    /// when you confirm them, so the field can't be read any more once the focus leaves it.
+    /// when you confirm them, without telling, so the field can't be read once the focus leaves it.
     private var lastSnapshot: FieldSnapshot?
     private var observer: AXObserver?
     private var appElement: AXUIElement?
+    private var monitors: [Any] = []
+    private var pollTimer: Timer?
+    /// The page texts around the "Start sprint" button on the backlog, read when it was clicked:
+    /// Jira's Start Sprint dialog may hide the rest of the page while it is open.
+    private var backlogTexts: [String] = []
 
     func start() {
         NSWorkspace.shared.notificationCenter.addObserver(
@@ -30,6 +41,18 @@ final class FocusWatcher: NSObject, FieldSource {
             name: NSWorkspace.didActivateApplicationNotification, object: nil
         )
         if let app = NSWorkspace.shared.frontmostApplication { observe(app) }
+        // Only the element under a click is looked at, to recognise buttons such as Start;
+        // clicks are not recorded.
+        if let monitor = NSEvent.addGlobalMonitorForEvents(matching: .leftMouseDown, handler: { [weak self] _ in
+            self?.mouseDown(at: NSEvent.mouseLocation)
+        }) { monitors.append(monitor) }
+        // Only Return is looked at (it submits a dialog, like clicking Start); typing is not recorded.
+        if let monitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown, handler: { [weak self] event in
+            if event.keyCode == 36 || event.keyCode == 76 { self?.returnPressed() }
+        }) { monitors.append(monitor) }
+        pollTimer = Timer.scheduledTimer(withTimeInterval: 0.25, repeats: true) { [weak self] _ in
+            self?.poll()
+        }
     }
 
     @objc private func appActivated(_ note: Notification) {
@@ -51,7 +74,8 @@ final class FocusWatcher: NSObject, FieldSource {
             if (notification as String) == kAXValueChangedNotification {
                 watcher.valueChanged(in: element)
             } else {
-                watcher.focusMoved(to: watcher.resolve(element))
+                // Don't trust the element named here (Safari names an empty window); ask now.
+                watcher.poll()
             }
         }
         var created: AXObserver?
@@ -64,7 +88,7 @@ final class FocusWatcher: NSObject, FieldSource {
         CFRunLoopAddSource(CFRunLoopGetMain(), AXObserverGetRunLoopSource(created), .defaultMode)
         observer = created
         self.appElement = appElement
-        current = AX.focusedElement(ofApp: appElement).map(resolve)
+        current = focusedNow()
     }
 
     private func stopObserving() {
@@ -76,39 +100,87 @@ final class FocusWatcher: NSObject, FieldSource {
         current = nil
     }
 
+    /// What the watched app says has the focus, asked directly.
+    private func focusedNow() -> AXUIElement? {
+        guard let appElement else { return nil }
+        return AX.focusedElement(ofApp: appElement)
+    }
+
+    /// Looks at the focus: reports a field that was left, else keeps the current field's reading fresh.
+    private func poll() {
+        guard appElement != nil else { return }
+        let now = focusedNow()
+        if let current, let now, CFEqual(current, now) {
+            refreshCurrent()
+        } else if current != nil || now != nil {
+            focusMoved(to: now)
+        }
+    }
+
     private func focusMoved(to element: AXUIElement?) {
         if let previous = current {
             let left = element.map { !CFEqual(previous, $0) } ?? true
             // Read it once more for its final text; if it's gone (an inline editor that
-            // closed), use what was read last while it had the focus.
-            if left, let snapshot = AX.snapshot(of: previous) ?? lastSnapshot {
-                onFieldLeft?(snapshot, snapshot.text != (textOnEntry ?? ""), element.map(AX.label(of:)))
+            // closed), use what was read last while it had the focus. The field rules don't need
+            // the dialog around it (the Sprint checks run on Start), so this stays cheap.
+            if left, let snapshot = AX.snapshot(of: previous, context: false) ?? lastSnapshot {
+                onFieldLeft?(snapshot, snapshot.text != (textOnEntry ?? ""))
             }
+            if left { onFocusMoved?() }
         }
         current = element
     }
 
     func currentField() -> FieldSnapshot? {
-        guard let element = current ?? AX.focusedElementSystemWide() else { return nil }
-        return AX.snapshot(of: resolve(element))
+        guard let element = focusedNow() ?? current ?? AX.focusedElementSystemWide() else { return nil }
+        return AX.snapshot(of: element)
     }
 
     /// Keeps the last reading of the current field up to date while the person types.
     private func valueChanged(in element: AXUIElement) {
-        guard let current, CFEqual(current, element), let snapshot = AX.snapshot(of: element, context: false) else { return }
+        guard let current, CFEqual(current, element) else { return }
+        refreshCurrent()
+    }
+
+    private func refreshCurrent() {
+        guard let current, let snapshot = AX.snapshot(of: current, context: false) else { return }
         lastSnapshot = snapshot
     }
 
-    /// Safari sometimes reports the window or the page as focused while a web input has
-    /// the focus; ask for the focused element again and prefer a text field.
-    private func resolve(_ element: AXUIElement) -> AXUIElement {
-        if isTextField(element) { return element }
-        if let appElement, let focused = AX.focusedElement(ofApp: appElement), isTextField(focused) { return focused }
-        if let focused = AX.focusedElementSystemWide(), isTextField(focused) { return focused }
-        return element
+    // MARK: Submitting a dialog
+
+    /// Mouse-down comes before the click takes effect, so the dialog can still be read.
+    private func mouseDown(at cocoaPoint: NSPoint) {
+        // AppKit counts from the bottom-left of the main screen, Accessibility from the top-left.
+        guard let primary = NSScreen.screens.first else { return }
+        let point = CGPoint(x: cocoaPoint.x, y: primary.frame.height - cocoaPoint.y)
+        guard let button = AX.button(at: point) else { return }
+        let dialog = AX.dialog(containing: button)
+        if dialog == nil, CoachRules.isStartButton(label: AX.buttonLabel(of: button)) {
+            // "Start sprint" on the backlog opens the dialog: remember the Sprint totals shown now.
+            backlogTexts = AX.pageTexts(around: button)
+        }
+        report(label: AX.buttonLabel(of: button), from: button, dialog: dialog)
     }
 
-    private func isTextField(_ element: AXUIElement) -> Bool {
-        AX.string(element, kAXRoleAttribute).map(CoachScope.textRoles.contains) ?? false
+    /// Return in a dialog's single-line field submits it, like clicking Start. In a text area it
+    /// starts a new line and in a combo box it picks an option, so those are skipped.
+    private func returnPressed() {
+        guard let element = focusedNow() ?? current,
+              !["AXTextArea", "AXComboBox"].contains(AX.string(element, kAXRoleAttribute) ?? ""),
+              let dialog = AX.dialog(containing: element) else { return }
+        report(label: ButtonPress.returnKey, from: element, dialog: dialog)
+    }
+
+    private func report(label: String, from element: AXUIElement, dialog: AXUIElement?) {
+        let form = dialog.map(AX.formFields(in:)) ?? []
+        var sprintTotal: Double?
+        if SprintGoalRule.goalField(in: form) != nil {
+            let name = SprintGoalRule.key(form: form)
+            sprintTotal = SprintTotal.find(in: AX.pageTexts(around: element), sprintName: name)
+                ?? SprintTotal.find(in: backlogTexts, sprintName: name)
+        }
+        onButtonPressed?(ButtonPress(label: label, pageURL: AX.pageURL(of: element),
+                                     form: form, sprintTotal: sprintTotal, frame: AX.frame(of: element)))
     }
 }

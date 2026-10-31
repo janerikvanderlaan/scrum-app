@@ -21,9 +21,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         HotKey.register { [weak self] in self?.checkNow() }
         // Text rules only look at what the person wrote or changed, so tabbing through
         // existing items stays quiet; the Sprint Goal check looks at the whole dialog.
-        watcher.onFieldLeft = { [weak self] field, changed, nextLabel in
-            self?.evaluate(field, changed: changed, nextLabel: nextLabel, askedByUser: false)
+        watcher.onFieldLeft = { [weak self] field, changed in
+            self?.evaluate(field, changed: changed, askedByUser: false)
         }
+        // Moving on to another field closes the tip: she has read it, or chose to carry on.
+        // The focus also moves while the tip appears (leaving the field, a dialog closing),
+        // so the first two seconds don't count.
+        watcher.onFocusMoved = { [weak self] in
+            guard let self, let shownAt = self.panel.shownAt, Date().timeIntervalSince(shownAt) > 2 else { return }
+            self.panel.close()
+        }
+        // Sprint Goal and forecast are checked when the person clicks Start in the Sprint dialog.
+        watcher.onButtonPressed = { [weak self] press in self?.buttonPressed(press) }
 
         let prompt = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
         if AXIsProcessTrustedWithOptions(prompt) {
@@ -53,11 +62,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         return CoachSettings(averageVelocity: stored > 0 ? stored : 10)
     }
 
-    private func evaluate(_ field: FieldSnapshot, changed: Bool, nextLabel: String? = nil, askedByUser: Bool) {
+    private func buttonPressed(_ press: ButtonPress) {
+        guard anyAppMode || CoachScope.isJiraPage(press.pageURL),
+              press.label == ButtonPress.returnKey || CoachRules.isStartButton(label: press.label) else { return }
+        let hints = CoachRules.sprintStart(form: press.form, sprintTotal: press.sprintTotal, settings: settings)
+        guard let message = CoachMessages.tips(hints) else { return }
+        // The click starts the Sprint, so the tip explains afterwards, as for every rule in mode explain.
+        panel.show(message, near: nil)
+    }
+
+    private func evaluate(_ field: FieldSnapshot, changed: Bool, askedByUser: Bool) {
         let outcome = CoachScope.shouldCoach(field.info, anyApp: anyAppMode)
             ? CoachRules.check(field: field.info, text: field.text, form: field.form,
                                changed: changed || askedByUser, settings: settings,
-                               nextLabel: nextLabel, sprintTotal: field.sprintTotal, anyApp: anyAppMode)
+                               sprintTotal: field.sprintTotal, askedByUser: askedByUser, anyApp: anyAppMode)
             : .notApplicable
         switch outcome {
         case .hint(let hint):

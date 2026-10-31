@@ -118,7 +118,9 @@ enum AX {
         return fields
     }
 
-    /// The visible texts of the web page around the element, in reading order.
+    /// The visible texts of the web page around the element, in reading order, plus the
+    /// descriptions of other elements: Jira shows a Sprint's status badges
+    /// ("Nog te doen: 22 van 27 (storypoints)") as a description, not as text.
     static func pageTexts(around element: AXUIElement, limit: Int = 5000) -> [String] {
         var webArea: AXUIElement? = element
         while let el = webArea, string(el, kAXRoleAttribute) != "AXWebArea" {
@@ -134,9 +136,32 @@ enum AX {
                 if let text = string(el, kAXValueAttribute), !text.isEmpty { texts.append(text) }
                 continue
             }
+            if let text = string(el, kAXDescriptionAttribute), !text.isEmpty { texts.append(text) }
             stack.append(contentsOf: children(of: el).reversed())
         }
         return texts
+    }
+
+    /// The button under a screen point (Accessibility coordinates), if any.
+    static func button(at point: CGPoint) -> AXUIElement? {
+        var hit: AXUIElement?
+        guard AXUIElementCopyElementAtPosition(AXUIElementCreateSystemWide(), Float(point.x), Float(point.y), &hit) == .success
+        else { return nil }
+        var current = hit
+        for _ in 0..<6 {
+            guard let el = current else { return nil }
+            if string(el, kAXRoleAttribute) == "AXButton" { return el }
+            current = self.element(el, kAXParentAttribute)
+        }
+        return nil
+    }
+
+    /// A button's visible name: its title or description, else the text inside it.
+    static func buttonLabel(of button: AXUIElement) -> String {
+        for name in [kAXTitleAttribute, kAXDescriptionAttribute] {
+            if let text = string(button, name), !text.isEmpty { return text }
+        }
+        return children(of: button).compactMap { string($0, kAXValueAttribute) }.joined(separator: " ")
     }
 
     static func frame(of element: AXUIElement) -> CGRect? {
