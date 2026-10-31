@@ -68,9 +68,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// everything else is explained after the press has gone through.
     private func buttonPressed(_ press: ButtonPress) -> Bool {
         guard anyAppMode || CoachScope.isJiraPage(press.pageURL),
-              press.label == ButtonPress.returnKey || CoachRules.isStartButton(label: press.label),
-              SprintGoalRule.goalField(in: press.form) != nil else {
-            print("Coach: not a Sprint start (\(press.label), \(press.form.count) fields in its dialog).")
+              press.label == ButtonPress.returnKey || CoachRules.isStartButton(label: press.label) else { return false }
+        guard SprintGoalRule.goalField(in: press.form) != nil else {
+            print("Coach: \"\(press.label)\" isn't in a Start Sprint dialog (\(press.form.count) fields around it).")
             return false
         }
         // The blocking rule (SG-150) only needs the dialog, not the page, so this stays quick.
@@ -124,7 +124,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             // Explain once per finding unless the person asks again.
             let key = hint.dedupeKey
             if !askedByUser && explained.contains(key) { return }
-            panel.show(hint.message, near: field.frame) { [weak self] in self?.explained.insert(key) }
+            panel.show(hint.message, near: field.frame, onClose: { [weak self] in self?.explained.insert(key) })
         case .fine(let message, let key):
             // Fixed now: if it goes wrong again later, explain it again.
             explained.remove(key)
