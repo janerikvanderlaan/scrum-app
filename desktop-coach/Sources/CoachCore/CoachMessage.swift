@@ -59,6 +59,22 @@ public enum CoachMessages {
         )
     }
 
+    /// One hint as usual; several (such as Sprint Goal and forecast at Sprint start) in one window.
+    public static func tips(_ hints: [Hint]) -> CoachMessage? {
+        guard let first = hints.first else { return nil }
+        guard hints.count > 1 else { return first.message }
+        return CoachMessage(
+            title: "A few small tips",
+            sections: hints.enumerated().flatMap { index, hint in [
+                CoachMessage.Section(heading: "\(index + 1). What I noticed", text: hint.what),
+                CoachMessage.Section(heading: "Why it helps", text: hint.why),
+                CoachMessage.Section(heading: "A next step", text: hint.how),
+                CoachMessage.Section(heading: nil, text: "\(hint.ruleID) · \(hint.source)"),
+            ] },
+            buttonTitle: "Thanks"
+        )
+    }
+
     public static func fine(_ text: String) -> CoachMessage {
         CoachMessage(title: "Looks good", sections: [.init(heading: nil, text: text)], buttonTitle: "Thanks")
     }

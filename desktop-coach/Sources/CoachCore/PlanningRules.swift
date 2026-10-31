@@ -39,7 +39,8 @@ public enum StoryPointsRule {
         let shown = value.rounded() == value ? String(Int(value)) : String(value)
         return Hint(
             ruleID: ruleID,
-            key: shown,
+            // Every new estimate is its own finding: two items of 10 points both get the tip.
+            key: UUID().uuidString,
             what: "This item is estimated at \(shown) points, more than the team's average velocity of \(averageVelocity). It probably won't fit in one Sprint.",
             why: "Items the team can finish within one Sprint are ready for Sprint Planning. Smaller items give feedback sooner and make the forecast more reliable.",
             how: "Try splitting it into smaller stories that each still deliver something useful, for example one per step in the workflow, one per type of user, or the simple case first.",
@@ -110,11 +111,17 @@ public enum SprintForecastRule {
 }
 
 /// Finds a Sprint's total estimate in the texts of the backlog page, in reading order.
-/// Jira shows it in the Sprint's header, after the Sprint name: "Schatting: 10 van 10"
-/// or "Estimate: 10 of 10" (visible items of all items; the second number is the total).
+/// Jira shows it in the Sprint's header, after the Sprint name, in one of two ways:
+/// - status badges: "Nog te doen: 22 van 27 (storypoints)", "To Do: 22 of 27 (story points)"
+///   (points per status of all points; the second number is the total),
+/// - an estimate: "Schatting: 10 van 10" or "Estimate: 10 of 10" (visible items of all items).
 public enum SprintTotal {
     private static let estimate = try! NSRegularExpression(
         pattern: #"(?:schatting|estimate)\s*:?\s*([0-9]+(?:[.,][0-9]+)?)(?:\s*(?:van|of)\s*([0-9]+(?:[.,][0-9]+)?))?"#,
+        options: [.caseInsensitive]
+    )
+    private static let badge = try! NSRegularExpression(
+        pattern: #"(?:nog te doen|in behandeling|voltooid|to do|in progress|done)\s*:\s*[0-9]+(?:[.,][0-9]+)?\s*(?:van|of)\s*([0-9]+(?:[.,][0-9]+)?)"#,
         options: [.caseInsensitive]
     )
 
@@ -122,10 +129,14 @@ public enum SprintTotal {
         let name = sprintName.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !name.isEmpty else { return nil }
         for (index, text) in texts.enumerated() where text.trimmingCharacters(in: .whitespaces).hasPrefix(name) {
-            let window = texts[(index + 1)..<min(texts.count, index + 40)].joined(separator: " ")
-            guard let match = estimate.firstMatch(in: window, range: NSRange(window.startIndex..., in: window)) else { continue }
-            let group = match.range(at: 2).location != NSNotFound ? 2 : 1
-            guard let range = Range(match.range(at: group), in: window) else { continue }
+            let window = texts[(index + 1)..<min(texts.count, index + 60)].joined(separator: " ")
+            let all = NSRange(window.startIndex..., in: window)
+            // Whichever comes first after the Sprint name belongs to this Sprint.
+            let found = [badge.firstMatch(in: window, range: all).map { ($0, 1) },
+                         estimate.firstMatch(in: window, range: all).map { ($0, $0.range(at: 2).location != NSNotFound ? 2 : 1) }]
+                .compactMap { $0 }
+                .min { $0.0.range.location < $1.0.range.location }
+            guard let found, let range = Range(found.0.range(at: found.1), in: window) else { continue }
             return Double(window[range].replacingOccurrences(of: ",", with: "."))
         }
         return nil
@@ -157,30 +168,20 @@ public struct CoachSettings: Equatable, Sendable {
 public enum CoachRules {
     /// `changed` is false when the person only passed through the field without editing it;
     /// text rules stay quiet then, the Sprint Goal check doesn't (an empty goal is never typed).
-    /// `nextLabel` is the label of the field that got the focus: moving into the Sprint goal
-    /// field means the person is about to fill it in, so the coach waits.
     /// `sprintTotal` is the Sprint's total estimate read from the page (nil when not found).
+    /// `askedByUser` is Control-Option-C or the menu: then the Sprint dialog is checked right away.
     /// `anyApp` is the test mode: the user story rule applies to every text field.
     public static func check(field: FieldInfo, text: String, form: [FormField], changed: Bool,
-                             settings: CoachSettings, nextLabel: String? = nil, sprintTotal: Double? = nil,
-                             anyApp: Bool = false) -> CoachOutcome {
+                             settings: CoachSettings, sprintTotal: Double? = nil,
+                             askedByUser: Bool = false, anyApp: Bool = false) -> CoachOutcome {
         if SprintGoalRule.goalField(in: form) != nil {
-            let sprintName = SprintGoalRule.key(form: form)
-            let goalHint = SprintGoalRule.check(form: form)
-            let movingIntoGoal = nextLabel.map { SprintGoalRule.isGoalField(label: $0) } ?? false
-            if let goalHint, !movingIntoGoal { return .hint(goalHint) }
-            if let hint = SprintForecastRule.check(total: sprintTotal, averageVelocity: settings.averageVelocity,
-                                                   sprintName: sprintName) {
-                return .hint(hint)
-            }
-            // Empty goal while she moves into the goal field: wait, she's about to fill it in.
-            if goalHint != nil { return .notApplicable }
-            var message = "This Sprint has a Sprint Goal."
-            if let sprintTotal {
-                let shown = sprintTotal.rounded() == sprintTotal ? String(Int(sprintTotal)) : String(sprintTotal)
-                message += " Its forecast of \(shown) points fits within the average velocity of \(settings.averageVelocity)."
-            }
-            return .fine(CoachMessages.fine(message + " Nice work."), key: "\(SprintGoalRule.ruleID)|\(sprintName)")
+            // The Sprint checks run when the person clicks Start (see sprintStart), not while
+            // she moves between the dialog's fields; only when she asks does the coach look now.
+            guard askedByUser else { return .notApplicable }
+            let hints = sprintStart(form: form, sprintTotal: sprintTotal, settings: settings)
+            if let first = hints.first { return .hint(first) }
+            return .fine(sprintLooksGood(sprintTotal: sprintTotal, settings: settings),
+                         key: "\(SprintGoalRule.ruleID)|\(SprintGoalRule.key(form: form))")
         }
         if StoryPointsRule.appliesTo(label: field.label) {
             guard StoryPointsRule.points(in: text) != nil else { return .notApplicable }
@@ -197,6 +198,32 @@ public enum CoachRules {
                          key: "\(UserStoryRule.ruleID)|\(text.trimmingCharacters(in: .whitespacesAndNewlines))")
         }
         return .notApplicable
+    }
+
+    /// Clicking Start in the Start Sprint dialog: Sprint Goal (SG-150) first, then the
+    /// forecast (TEAM-03). Empty when all is well or the form isn't a Sprint dialog.
+    public static func sprintStart(form: [FormField], sprintTotal: Double?, settings: CoachSettings) -> [Hint] {
+        guard SprintGoalRule.goalField(in: form) != nil else { return [] }
+        let sprintName = SprintGoalRule.key(form: form)
+        return [
+            SprintGoalRule.check(form: form),
+            SprintForecastRule.check(total: sprintTotal, averageVelocity: settings.averageVelocity, sprintName: sprintName),
+        ].compactMap { $0 }
+    }
+
+    static func sprintLooksGood(sprintTotal: Double?, settings: CoachSettings) -> CoachMessage {
+        var message = "This Sprint has a Sprint Goal."
+        if let sprintTotal {
+            let shown = sprintTotal.rounded() == sprintTotal ? String(Int(sprintTotal)) : String(sprintTotal)
+            message += " Its forecast of \(shown) points fits within the average velocity of \(settings.averageVelocity)."
+        }
+        return CoachMessages.fine(message + " Nice work.")
+    }
+
+    /// The button that starts the Sprint in Jira's Start Sprint dialog.
+    public static func isStartButton(label: String) -> Bool {
+        let lower = label.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
+        return ["start", "starten", "start sprint", "sprint starten"].contains(lower)
     }
 
     public static func shortLabel(_ label: String) -> String {

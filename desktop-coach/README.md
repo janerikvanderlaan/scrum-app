@@ -7,8 +7,8 @@ rule from the team's rule set isn't met, shows a friendly tip. Rules so far:
 |---|---|---|
 | **TEAM-02** | Summary, Description | the text isn't written as "As a … I want to … so that …" |
 | **SG-200** | Story point estimate | the estimate is above the team's average velocity (set it in the menu, default 10) |
-| **SG-150** | Start Sprint dialog | the Sprint goal field is empty |
-| **TEAM-03** | Start Sprint dialog | the Sprint's total estimate (read from its backlog header, "Schatting: 10 van 10") is above the average velocity |
+| **SG-150** | Start Sprint dialog | you click Start (or press Return) while the Sprint goal field is empty |
+| **TEAM-03** | Start Sprint dialog | you click Start while the Sprint's total (read from its backlog header, "Nog te doen: 22 van 27 (storypoints)" or "Schatting: 10 van 10") is above the average velocity |
 
 For now the average velocity is the coach's own setting. Reading Jira's velocity (and the
 Sprint total) straight from Jira with a read-only API token is planned for later.
@@ -24,7 +24,8 @@ Safari) without screenshots?" It is not part of the scrum-app web app.
 - Never reads password or search fields.
 - Coaches only the fields above on Jira pages (`*.atlassian.net` or a host with
   "jira" in it), unless you switch on test mode.
-- Explains afterwards: the tip appears when you leave the field, never while typing.
+- Explains afterwards: a field tip appears when you leave the field, never while typing;
+  the Sprint tips appear when you click Start in the Start Sprint dialog.
   A tip you've closed isn't shown again for the same text.
 - Helps when asked: press **Control-Option-C** in any field, or use the menu.
 - Only advises. It never types, clicks or changes anything in Jira.
@@ -84,10 +85,11 @@ command you type in the **Terminal** app (find it with Spotlight, ⌘-Space, "Te
    that isn't a user story, then move to the next field.
 3. **Story points**: choose **Average velocity** in the coach menu and check the
    number (10 by default). Give a story an estimate of 13 and click elsewhere.
-4. **Sprint Goal**: in the backlog, click **Start sprint** (Sprint starten), leave
-   the Sprint goal empty and press Tab to move through the fields. If you click
-   Start straight away the dialog closes before the coach can look; then try
-   Control-Option-C while you're in the dialog.
+4. **Sprint Goal and forecast**: in the backlog, click **Start sprint** (Sprint
+   starten). Moving between the dialog's fields stays quiet. Leave the Sprint goal
+   empty and click **Start** (Starten): the Sprint starts and the coach explains
+   afterwards, also about a forecast above the average velocity. Control-Option-C
+   in the dialog checks it before you start.
 5. **If nothing happens**: click in the field and choose **Show what the coach
    sees** from the menu. It shows the app, page, field type, label, text and the
    other fields of the dialog the coach read. A screenshot of that window tells us what Jira exposes, which is

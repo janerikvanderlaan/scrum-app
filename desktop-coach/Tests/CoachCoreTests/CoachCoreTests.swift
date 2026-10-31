@@ -110,11 +110,11 @@ final class PlanningRulesTests: XCTestCase {
     private let settings = CoachSettings(averageVelocity: 10)
 
     private func outcome(label: String, text: String, form: [FormField] = [], changed: Bool = true,
-                         nextLabel: String? = nil) -> CoachOutcome {
+                         askedByUser: Bool = false) -> CoachOutcome {
         var field = jira
         field.label = label
         return CoachRules.check(field: field, text: text, form: form, changed: changed, settings: settings,
-                                nextLabel: nextLabel)
+                                askedByUser: askedByUser)
     }
 
     private func hint(_ outcome: CoachOutcome) -> Hint? {
@@ -165,9 +165,8 @@ final class PlanningRulesTests: XCTestCase {
         FormField(label: "Sprint goal", text: ""),
     ]
 
-    func testEmptySprintGoalGetsAHintFromAnyDialogField() throws {
-        // The goal is never typed, so the check runs even when the field left wasn't changed.
-        let found = try XCTUnwrap(hint(outcome(label: "Sprint name", text: "CT Sprint 4", form: startSprintDialog, changed: false)))
+    func testEmptySprintGoalGetsAHintOnStart() throws {
+        let found = try XCTUnwrap(CoachRules.sprintStart(form: startSprintDialog, sprintTotal: nil, settings: settings).first)
         XCTAssertEqual(found.ruleID, "SG-150")
         XCTAssertEqual(found.dedupeKey, "SG-150|CT Sprint 4")
     }
@@ -176,26 +175,36 @@ final class PlanningRulesTests: XCTestCase {
         var form = startSprintDialog
         form[2] = FormField(label: "Sprint goal", text: "Customers can pay with iDEAL")
         XCTAssertNil(SprintGoalRule.check(form: form))
-        if case .fine = outcome(label: "Sprint goal", text: "Customers can pay with iDEAL", form: form) {} else { XCTFail("expected fine") }
+        XCTAssertEqual(CoachRules.sprintStart(form: form, sprintTotal: nil, settings: settings), [])
+        if case .fine = outcome(label: "Sprint goal", text: "Customers can pay with iDEAL", form: form, askedByUser: true) {} else { XCTFail("expected fine") }
     }
 
     // Test round 1 (2026-10-30)
 
-    func testClickingIntoTheEmptyGoalFieldWaits() {
-        // Issue 2: clicking the Sprint goal field right away means she's about to fill it in.
-        XCTAssertEqual(outcome(label: "Sprint name", text: "CT Sprint 4", form: startSprintDialog,
-                               changed: false, nextLabel: "Sprint goal"), .notApplicable)
-        // Leaving the goal field empty, or tabbing to another field, still gets the tip.
-        XCTAssertNotNil(hint(outcome(label: "Sprint goal", text: "", form: startSprintDialog,
-                                     changed: false, nextLabel: "Start date")))
+    func testMovingBetweenDialogFieldsStaysQuiet() {
+        // Round 2 issue 1: the Sprint checks wait for Start; moving between fields never triggers them.
+        XCTAssertEqual(outcome(label: "Sprint name", text: "CT Sprint 4", form: startSprintDialog, changed: false), .notApplicable)
+        XCTAssertEqual(outcome(label: "Sprint goal", text: "", form: startSprintDialog, changed: false), .notApplicable)
+        XCTAssertEqual(outcome(label: "Sprint goal", text: "Draft", form: startSprintDialog, changed: true), .notApplicable)
+        // Asking with Control-Option-C still checks the dialog right away.
+        XCTAssertEqual(hint(outcome(label: "Sprint goal", text: "", form: startSprintDialog, askedByUser: true))?.ruleID, "SG-150")
+    }
+
+    func testOnlyTheStartButtonRunsTheSprintChecks() {
+        for label in ["Start", "Starten", "Start sprint", "Sprint starten", " starten "] {
+            XCTAssertTrue(CoachRules.isStartButton(label: label), label)
+        }
+        for label in ["Annuleren", "Cancel", "Start date", "Startdatum", ""] {
+            XCTAssertFalse(CoachRules.isStartButton(label: label), label)
+        }
     }
 
     func testFilledGoalReportsTheSameKeySoADeletedGoalIsExplainedAgain() throws {
         // Issue 1: add a goal, delete it, tab on: the tip comes back.
-        let first = try XCTUnwrap(hint(outcome(label: "Sprint name", text: "CT Sprint 4", form: startSprintDialog, changed: false)))
+        let first = try XCTUnwrap(CoachRules.sprintStart(form: startSprintDialog, sprintTotal: nil, settings: settings).first)
         var filled = startSprintDialog
         filled[2] = FormField(label: "Sprint goal", text: "Customers can pay with iDEAL")
-        guard case .fine(_, let key) = outcome(label: "Sprint goal", text: "Customers can pay with iDEAL", form: filled) else {
+        guard case .fine(_, let key) = outcome(label: "Sprint goal", text: "Customers can pay with iDEAL", form: filled, askedByUser: true) else {
             return XCTFail("expected fine")
         }
         XCTAssertEqual(key, first.dedupeKey)
@@ -206,6 +215,13 @@ final class PlanningRulesTests: XCTestCase {
         let eight = CoachSettings(averageVelocity: 8)
         XCTAssertNil(StoryPointsRule.check("5", averageVelocity: eight.averageVelocity))
         XCTAssertNotNil(StoryPointsRule.check("10", averageVelocity: eight.averageVelocity))
+    }
+
+    func testEveryLargeItemGetsItsOwnTip() throws {
+        // Round 2 issue 3: a second item with the same estimate was skipped as "already explained".
+        let first = try XCTUnwrap(StoryPointsRule.check("10", averageVelocity: 8))
+        let second = try XCTUnwrap(StoryPointsRule.check("10", averageVelocity: 8))
+        XCTAssertNotEqual(first.dedupeKey, second.dedupeKey)
     }
 
     // TEAM-03 (screen only for now)
@@ -220,6 +236,18 @@ final class PlanningRulesTests: XCTestCase {
         XCTAssertNil(SprintTotal.find(in: page, sprintName: ""))
     }
 
+    func testSprintTotalFromTheStatusBadges() {
+        // Round 2 issue 2, seen with CoachProbe: this Jira shows status badges, not "Schatting".
+        let page = ["CT Sprint 4", "27 okt – 10 nov", "(4 werkitems)",
+                    "Nog te doen: 22 van 27 (storypoints)", "22",
+                    "In behandeling: 5 van 27 (storypoints)", "5",
+                    "Voltooid: 0 van 27 (storypoints)", "0", "Sprint starten"]
+        XCTAssertEqual(SprintTotal.find(in: page, sprintName: "CT Sprint 4"), 27)
+        XCTAssertEqual(SprintTotal.find(in: ["OW Sprint 1", "To Do: 3 of 8 (story points)"], sprintName: "OW Sprint 1"), 8)
+        // A status word without "of N" is not a total.
+        XCTAssertNil(SprintTotal.find(in: ["OW Sprint 1", "Done: 3"], sprintName: "OW Sprint 1"))
+    }
+
     private var goalFilled: [FormField] {
         var form = startSprintDialog
         form[2] = FormField(label: "Sprint goal", text: "Customers can pay with iDEAL")
@@ -228,9 +256,7 @@ final class PlanningRulesTests: XCTestCase {
 
     func testForecastAboveVelocityGetsATip() throws {
         let eight = CoachSettings(averageVelocity: 8)
-        let result = CoachRules.check(field: jira, text: "CT Sprint 4", form: goalFilled, changed: false,
-                                      settings: eight, sprintTotal: 10)
-        let found = try XCTUnwrap(hint(result))
+        let found = try XCTUnwrap(CoachRules.sprintStart(form: goalFilled, sprintTotal: 10, settings: eight).first)
         XCTAssertEqual(found.ruleID, "TEAM-03")
         XCTAssertTrue(found.what.contains("10 points"))
         XCTAssertTrue(found.what.contains("average velocity of 8"))
@@ -238,16 +264,27 @@ final class PlanningRulesTests: XCTestCase {
     }
 
     func testForecastWithinVelocityIsFine() {
+        XCTAssertEqual(CoachRules.sprintStart(form: goalFilled, sprintTotal: 10, settings: settings), [])
         let result = CoachRules.check(field: jira, text: "CT Sprint 4", form: goalFilled, changed: false,
-                                      settings: settings, sprintTotal: 10)
+                                      settings: settings, sprintTotal: 10, askedByUser: true)
         guard case .fine(let message, _) = result else { return XCTFail("expected fine") }
         XCTAssertTrue(message.sections[0].text.contains("fits within the average velocity of 10"))
     }
 
-    func testSprintGoalTipComesBeforeTheForecastTip() {
-        let result = CoachRules.check(field: jira, text: "CT Sprint 4", form: startSprintDialog, changed: false,
-                                      settings: CoachSettings(averageVelocity: 8), sprintTotal: 10)
-        XCTAssertEqual(hint(result)?.ruleID, "SG-150")
+    func testStartShowsBothTipsGoalFirst() throws {
+        // Round 2 issue 2: clicking Start with no goal and too much work gives both tips in one message.
+        let hints = CoachRules.sprintStart(form: startSprintDialog, sprintTotal: 10, settings: CoachSettings(averageVelocity: 8))
+        XCTAssertEqual(hints.map(\.ruleID), ["SG-150", "TEAM-03"])
+        let message = try XCTUnwrap(CoachMessages.tips(hints))
+        XCTAssertEqual(message.title, "A few small tips")
+        XCTAssertTrue(message.sections.contains { $0.text.contains("Sprint Goal") })
+        XCTAssertTrue(message.sections.contains { $0.text.contains("10 points") })
+        XCTAssertEqual(CoachMessages.tips([hints[0]]), hints[0].message)
+        XCTAssertNil(CoachMessages.tips([]))
+    }
+
+    func testStartOutsideASprintDialogDoesNothing() {
+        XCTAssertEqual(CoachRules.sprintStart(form: [FormField(label: "Summary", text: "")], sprintTotal: 50, settings: settings), [])
     }
 
     func testUnknownTotalStaysQuiet() {
