@@ -47,7 +47,11 @@ final class FocusWatcher: NSObject, FieldSource {
         if let app = NSWorkspace.shared.frontmostApplication { observe(app) }
         // Only the element under a click is looked at, to recognise buttons such as Start, and only
         // Return among the keys (it submits a dialog); nothing is recorded.
-        if !installTap() {
+        let tapped = installTap()
+        // Shown in Terminal, so we can tell from there whether blocking rules can work.
+        print(tapped ? "Coach: can hold back a click on Start (blocking rules on)."
+                     : "Coach: can't hold back clicks (event tap refused), blocking rules only explain.")
+        if !tapped {
             // Without the tap the coach can still explain afterwards, but not hold a step back.
             if let monitor = NSEvent.addGlobalMonitorForEvents(matching: .leftMouseDown, handler: { [weak self] event in
                 _ = self?.mouseDown(at: event.cgEvent?.location ?? .zero)
@@ -180,6 +184,7 @@ final class FocusWatcher: NSObject, FieldSource {
         switch type {
         case .tapDisabledByTimeout, .tapDisabledByUserInput:
             // macOS switches a slow tap off; switch it on again.
+            print("Coach: macOS paused the click check (\(type == .tapDisabledByTimeout ? "too slow" : "user input")); switched it on again.")
             if let tap { CGEvent.tapEnable(tap: tap, enable: true) }
             return false
         case .leftMouseDown:
@@ -211,7 +216,12 @@ final class FocusWatcher: NSObject, FieldSource {
             // right after the click has gone through (reading the page takes a moment).
             DispatchQueue.main.async { [weak self] in self?.backlogTexts = AX.pageTexts(around: button) }
         }
-        return report(label: AX.buttonLabel(of: button), from: button, dialog: dialog)
+        let started = Date()
+        let held = report(label: AX.buttonLabel(of: button), from: button, dialog: dialog)
+        if dialog != nil {
+            print("Coach: button \"\(AX.buttonLabel(of: button))\" in a dialog, \(held ? "held back" : "let through") after \(Int(Date().timeIntervalSince(started) * 1000)) ms.")
+        }
+        return held
     }
 
     /// Return in a dialog's single-line field submits it, like clicking Start. In a text area it

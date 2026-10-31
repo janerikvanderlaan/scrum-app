@@ -69,7 +69,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func buttonPressed(_ press: ButtonPress) -> Bool {
         guard anyAppMode || CoachScope.isJiraPage(press.pageURL),
               press.label == ButtonPress.returnKey || CoachRules.isStartButton(label: press.label),
-              SprintGoalRule.goalField(in: press.form) != nil else { return false }
+              SprintGoalRule.goalField(in: press.form) != nil else {
+            print("Coach: not a Sprint start (\(press.label), \(press.form.count) fields in its dialog).")
+            return false
+        }
         // The blocking rule (SG-150) only needs the dialog, not the page, so this stays quick.
         let quick = CoachRules.sprintStart(form: press.form, sprintTotal: nil, settings: settings)
         let held = CoachRules.gate(quick, overridden: overridden).hold
