@@ -107,7 +107,9 @@ way we expect, so there's a separate small logger to see it for ourselves.
 
    It uses the same Accessibility permission as the coach (granted to Terminal).
    You can run it alongside the coach or on its own.
-2. Use Jira as usual: click, tab, type, open the Start Sprint dialog, click Start.
+2. Switch to Safari. The probe doesn't watch the Terminal window it writes to
+   (that would log its own lines in a loop), so nothing new appears until you
+   use another app. Use Jira as usual: click, tab, type, open the Start Sprint dialog, click Start.
    Press **Control-Option-M** just before a step you want to look at; it writes
    "marker 1", "marker 2" … into the log so we can find that moment.
 3. Press **Control-C** in Terminal to stop. The log is in the folder

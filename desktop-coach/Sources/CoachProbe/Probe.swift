@@ -17,6 +17,9 @@ final class Probe: NSObject {
     private var lastFocus: AXUIElement?
     private var lastValue: String?
     private var markers = 0
+    /// The app the probe was started from (Terminal). Its text changes with every line the probe
+    /// writes, so watching it would log the probe's own output in an endless loop.
+    private let ownTerminal = Probe.hostApp()
 
     init(showText: Bool, log: ProbeLog) {
         self.showText = showText
@@ -28,7 +31,11 @@ final class Probe: NSObject {
             self, selector: #selector(appActivated(_:)),
             name: NSWorkspace.didActivateApplicationNotification, object: nil
         )
-        if let app = NSWorkspace.shared.frontmostApplication { observe(app) }
+        if let ownTerminal { log.write("app", "\(ownTerminal.localizedName ?? "?") is where the probe writes; it is not watched") }
+        if let app = NSWorkspace.shared.frontmostApplication {
+            log.write("app", "at start: \(app.localizedName ?? "?") (\(app.bundleIdentifier ?? "no bundle id"), pid \(app.processIdentifier))")
+            observe(app)
+        }
 
         let mouse: NSEvent.EventTypeMask = [.leftMouseDown, .leftMouseUp, .rightMouseDown]
         if let monitor = NSEvent.addGlobalMonitorForEvents(matching: mouse, handler: { [weak self] event in
@@ -69,6 +76,11 @@ final class Probe: NSObject {
         watchedApp = app
         let pid = app.processIdentifier
         guard pid != getpid() else { return }
+        if pid == ownTerminal?.processIdentifier {
+            lastFocus = nil
+            lastValue = nil
+            return log.write("app", "  not watched: the probe writes its log here")
+        }
 
         let callback: AXObserverCallback = { _, element, notification, refcon in
             guard let refcon else { return }
@@ -124,6 +136,7 @@ final class Probe: NSObject {
     // MARK: Poll
 
     private func poll() {
+        if let watchedApp, watchedApp.processIdentifier == ownTerminal?.processIdentifier { return }
         guard let focused = ProbeAX.element(AXUIElementCreateSystemWide(), kAXFocusedUIElementAttribute) else {
             if lastFocus != nil {
                 log.write("poll", "no focused element (no notification was sent)")
@@ -142,6 +155,20 @@ final class Probe: NSObject {
             log.write("poll", "focus moved without a notification: \(describe(focused))")
             remember(focused)
         }
+    }
+
+    /// The first app among the probe's parent processes (swift run, the shell, …, Terminal).
+    private static func hostApp() -> NSRunningApplication? {
+        var pid = getppid()
+        for _ in 0..<10 where pid > 1 {
+            if let app = NSRunningApplication(processIdentifier: pid) { return app }
+            var info = kinfo_proc()
+            var size = MemoryLayout<kinfo_proc>.stride
+            var mib: [Int32] = [CTL_KERN, KERN_PROC, KERN_PROC_PID, pid]
+            guard sysctl(&mib, u_int(mib.count), &info, &size, nil, 0) == 0, size > 0 else { return nil }
+            pid = info.kp_eproc.e_ppid
+        }
+        return nil
     }
 
     private func remember(_ element: AXUIElement) {
